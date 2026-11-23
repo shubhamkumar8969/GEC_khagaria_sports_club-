@@ -1,0 +1,8 @@
+{
+  "name": "GEC Khagaria Sports Club",
+  "description": "Official Sports Club Management Platform for Government Engineering College, Khagaria — Events, Registrations, Participant Tracking, and Reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

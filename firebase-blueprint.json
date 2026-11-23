@@ -1,0 +1,632 @@
+{
+  "entities": {
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized Sports Club administrator account with role-based permissions and event assignments.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "email": { "type": "string", "format": "email", "minLength": 5, "maxLength": 200 },
+        "role": { "type": "string", "enum": ["super_admin", "event_admin", "coordinator"] },
+        "active": { "type": "boolean" },
+        "assignedEventIds": { "type": "array", "description": "Bounded list of assigned event IDs (max 50)." },
+        "permissions": { "type": "array", "description": "Bounded list of granular permission strings (max 30)." },
+        "inviteId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "email", "role", "active", "assignedEventIds", "permissions", "createdAt", "updatedAt"]
+    },
+    "AdminInvite": {
+      "title": "AdminInvite",
+      "description": "Super-admin issued invitation allowing an approved Google email to activate an admin role.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email", "minLength": 5, "maxLength": 200 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "role": { "type": "string", "enum": ["super_admin", "event_admin", "coordinator"] },
+        "active": { "type": "boolean" },
+        "assignedEventIds": { "type": "array" },
+        "permissions": { "type": "array" },
+        "invitedBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "displayName", "role", "active", "assignedEventIds", "permissions", "invitedBy", "createdAt", "updatedAt"]
+    },
+    "StudentAccount": {
+      "title": "StudentAccount",
+      "description": "Every student who signs in via Google on the Sports Club website, including login count, timestamps, profile summary, and admin block/active status.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "minLength": 5, "maxLength": 200 },
+        "displayName": { "type": "string", "maxLength": 120 },
+        "photoUrl": { "type": "string", "maxLength": 1000 },
+        "profileCompleted": { "type": "boolean" },
+        "fullName": { "type": "string", "maxLength": 120 },
+        "registrationNumber": { "type": "string", "maxLength": 40 },
+        "branch": { "type": "string", "maxLength": 80 },
+        "year": { "type": "string", "maxLength": 30 },
+        "semester": { "type": "string", "maxLength": 30 },
+        "phone": { "type": "string", "maxLength": 20 },
+        "status": { "type": "string", "enum": ["active", "blocked"] },
+        "blockedReason": { "type": "string", "maxLength": 500 },
+        "blockedBy": { "type": "string", "maxLength": 128 },
+        "blockedByName": { "type": "string", "maxLength": 120 },
+        "blockedAt": { "type": "string", "format": "date-time" },
+        "loginCount": { "type": "integer" },
+        "lastLoginAt": { "type": "string", "format": "date-time" },
+        "lastActiveAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "uid", "email", "displayName", "photoUrl", "profileCompleted",
+        "fullName", "registrationNumber", "branch", "year", "phone",
+        "status", "blockedReason", "blockedBy", "blockedByName",
+        "loginCount", "lastLoginAt", "lastActiveAt", "createdAt", "updatedAt"
+      ]
+    },
+    "StudentActivity": {
+      "title": "StudentActivity",
+      "description": "Append-only user activity log capturing student logins, profile updates, page views, event registrations, certificate downloads, and admin moderation events.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "minLength": 3, "maxLength": 200 },
+        "studentName": { "type": "string", "maxLength": 120 },
+        "registrationNumber": { "type": "string", "maxLength": 40 },
+        "action": {
+          "type": "string",
+          "enum": [
+            "login", "logout", "profile_saved", "page_view",
+            "registration_submitted", "registration_failed",
+            "certificate_preview", "certificate_download",
+            "blocked_access_attempt", "admin_block", "admin_unblock", "admin_remove"
+          ]
+        },
+        "summary": { "type": "string", "minLength": 2, "maxLength": 500 },
+        "path": { "type": "string", "maxLength": 300 },
+        "eventId": { "type": "string", "maxLength": 128 },
+        "gameId": { "type": "string", "maxLength": 128 },
+        "metadata": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "uid", "email", "studentName", "registrationNumber",
+        "action", "summary", "path", "eventId", "gameId", "metadata", "createdAt"
+      ]
+    },
+    "StudentProfile": {
+      "title": "StudentProfile",
+      "description": "Verified logged-in student academic identity used for registration autofill, event tracking, and certificate issuance.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fullName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "registrationNumber": { "type": "string", "minLength": 2, "maxLength": 40 },
+        "regNoHash": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$" },
+        "branch": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "batch": { "type": "string", "maxLength": 40 },
+        "year": { "type": "string", "minLength": 1, "maxLength": 30 },
+        "semester": { "type": "string", "maxLength": 30 },
+        "phone": { "type": "string", "maxLength": 20 },
+        "email": { "type": "string", "format": "email", "minLength": 5, "maxLength": 200 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "fullName", "registrationNumber", "regNoHash", "branch", "year", "phone", "email", "createdAt", "updatedAt"]
+    },
+    "EnrollmentLock": {
+      "title": "EnrollmentLock",
+      "description": "PII-free SHA-256 uniqueness lock preventing duplicate enrollment numbers across student profiles.",
+      "type": "object",
+      "properties": {
+        "regNoHash": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$" },
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["regNoHash", "uid", "createdAt", "updatedAt"]
+    },
+    "SportEvent": {
+      "title": "SportEvent",
+      "description": "Independent sports event organized by the GEC Khagaria Sports Club.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "slug": { "type": "string", "minLength": 2, "maxLength": 140, "pattern": "^[a-z0-9-]+$" },
+        "shortDescription": { "type": "string", "minLength": 2, "maxLength": 300 },
+        "description": { "type": "string", "maxLength": 5000 },
+        "highlightsText": { "type": "string", "maxLength": 4000 },
+        "bannerUrl": { "type": "string", "maxLength": 450000 },
+        "venue": { "type": "string", "maxLength": 200 },
+        "startAt": { "type": "string", "format": "date-time" },
+        "endAt": { "type": "string", "format": "date-time" },
+        "registrationStartAt": { "type": "string", "format": "date-time" },
+        "registrationEndAt": { "type": "string", "format": "date-time" },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "published", "registration_open", "registration_closed", "ongoing", "completed", "archived"]
+        },
+        "featured": { "type": "boolean" },
+        "autoApprove": { "type": "boolean" },
+        "showPublicResults": { "type": "boolean" },
+        "createdBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "updatedBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "name", "slug", "shortDescription", "description", "bannerUrl", "venue",
+        "startAt", "endAt", "registrationStartAt", "registrationEndAt",
+        "status", "featured", "autoApprove", "showPublicResults",
+        "createdBy", "updatedBy", "createdAt", "updatedAt"
+      ]
+    },
+    "EventGame": {
+      "title": "EventGame",
+      "description": "Game or sporting discipline inside an event with participation rules and custom form fields.",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "category": { "type": "string", "enum": ["Indoor", "Outdoor", "Athletics", "Esports", "Other"] },
+        "participationType": { "type": "string", "enum": ["individual", "doubles", "team"] },
+        "description": { "type": "string", "maxLength": 3000 },
+        "rules": { "type": "string", "maxLength": 5000 },
+        "maxParticipants": { "type": "integer" },
+        "maxTeams": { "type": "integer" },
+        "minTeamSize": { "type": "integer" },
+        "maxTeamSize": { "type": "integer" },
+        "registrationDeadline": { "type": "string", "format": "date-time" },
+        "registrationStatus": { "type": "string", "enum": ["draft", "open", "closed"] },
+        "eligibility": { "type": "string", "maxLength": 500 },
+        "sortOrder": { "type": "integer" },
+        "customFields": { "type": "array", "description": "Admin-defined dynamic form fields (max 25)." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "eventId", "name", "category", "participationType", "description", "rules",
+        "maxParticipants", "maxTeams", "minTeamSize", "maxTeamSize",
+        "registrationDeadline", "registrationStatus", "eligibility", "sortOrder",
+        "customFields", "createdAt", "updatedAt"
+      ]
+    },
+    "EventPhoto": {
+      "title": "EventPhoto",
+      "description": "Event photography uploaded by admins and categorized by sports event for the public photo gallery.",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "eventName": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "title": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "caption": { "type": "string", "maxLength": 500 },
+        "imageUrl": { "type": "string", "minLength": 5, "maxLength": 450000 },
+        "published": { "type": "boolean" },
+        "uploadedBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "uploadedByName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["eventId", "eventName", "title", "caption", "imageUrl", "published", "uploadedBy", "uploadedByName", "createdAt", "updatedAt"]
+    },
+    "IssuedCertificate": {
+      "title": "IssuedCertificate",
+      "description": "Official certificate issued by admins (winner, selected squad, or participation) with optional custom certificate artwork.",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "eventName": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "gameId": { "type": "string", "maxLength": 128 },
+        "gameName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "studentUid": { "type": "string", "maxLength": 128 },
+        "registrationId": { "type": "string", "maxLength": 128 },
+        "regNoHash": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$" },
+        "studentName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "registrationNumber": { "type": "string", "minLength": 2, "maxLength": 40 },
+        "branch": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "batch": { "type": "string", "maxLength": 40 },
+        "year": { "type": "string", "minLength": 1, "maxLength": 30 },
+        "teamName": { "type": "string", "maxLength": 120 },
+        "certificateType": { "type": "string", "enum": ["winner", "selected", "participation"] },
+        "placement": { "type": "string", "enum": ["winner", "runner_up", "third_place", "selected", "participant"] },
+        "certificateTitle": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "certificateNote": { "type": "string", "maxLength": 400 },
+        "customImageUrl": { "type": "string", "maxLength": 450000 },
+        "issuedBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "issuedByName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "issuedAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "eventId", "eventName", "gameId", "gameName", "studentUid", "registrationId",
+        "regNoHash", "studentName", "registrationNumber", "branch", "batch", "year",
+        "teamName", "certificateType", "placement", "certificateTitle", "certificateNote",
+        "customImageUrl", "issuedBy", "issuedByName", "issuedAt", "updatedAt"
+      ]
+    },
+    "CertificateIndexEntry": {
+      "title": "CertificateIndexEntry",
+      "description": "Non-enumerable SHA-256 registration-number-indexed projection of IssuedCertificate for logged-in student retrieval.",
+      "type": "object",
+      "properties": {
+        "certId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "regNoHash": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$" },
+        "eventId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "eventName": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "gameId": { "type": "string", "maxLength": 128 },
+        "gameName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "studentName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "registrationNumber": { "type": "string", "minLength": 2, "maxLength": 40 },
+        "branch": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "batch": { "type": "string", "maxLength": 40 },
+        "year": { "type": "string", "minLength": 1, "maxLength": 30 },
+        "teamName": { "type": "string", "maxLength": 120 },
+        "certificateType": { "type": "string", "enum": ["winner", "selected", "participation"] },
+        "placement": { "type": "string", "enum": ["winner", "runner_up", "third_place", "selected", "participant"] },
+        "certificateTitle": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "certificateNote": { "type": "string", "maxLength": 400 },
+        "customImageUrl": { "type": "string", "maxLength": 450000 },
+        "issuedAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "certId", "regNoHash", "eventId", "eventName", "gameId", "gameName",
+        "studentName", "registrationNumber", "branch", "batch", "year", "teamName",
+        "certificateType", "placement", "certificateTitle", "certificateNote",
+        "customImageUrl", "issuedAt", "updatedAt"
+      ]
+    },
+    "GameCounter": {
+      "title": "GameCounter",
+      "description": "Atomic registration count tracker per event and game for capacity enforcement.",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "gameId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "count": { "type": "integer" },
+        "lastRegistrationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["eventId", "gameId", "count", "lastRegistrationId", "updatedAt"]
+    },
+    "RegistrationLock": {
+      "title": "RegistrationLock",
+      "description": "PII-free uniqueness lock preventing duplicate registrations per participant per event and game.",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "gameId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "registrationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["eventId", "gameId", "registrationId", "createdAt"]
+    },
+    "Registration": {
+      "title": "Registration",
+      "description": "Student or team registration record containing participant PII, custom answers, status, match progress, and certificate status.",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "eventName": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "gameId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "gameName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "participationType": { "type": "string", "enum": ["individual", "doubles", "team"] },
+        "registrationReference": { "type": "string", "minLength": 6, "maxLength": 40, "pattern": "^[A-Z0-9-]+$" },
+        "lookupKey": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$" },
+        "studentPortalKey": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$" },
+        "studentUid": { "type": "string", "maxLength": 128 },
+        "participant": { "type": "object" },
+        "team": { "type": "object" },
+        "customAnswers": { "type": "object" },
+        "registrationStatus": { "type": "string", "enum": ["pending", "approved", "rejected", "waitlisted", "withdrawn", "cancelled"] },
+        "selectionStatus": { "type": "string", "enum": ["not_reviewed", "shortlisted", "selected", "not_selected"] },
+        "teamAssignment": { "type": "string", "maxLength": 100 },
+        "matchStatus": { "type": "string", "enum": ["not_scheduled", "scheduled", "in_progress", "completed", "did_not_attend"] },
+        "result": { "type": "string", "enum": ["no_result", "winner", "runner_up", "participant", "disqualified"] },
+        "certificateIssued": { "type": "boolean" },
+        "certificateId": { "type": "string", "maxLength": 60 },
+        "certificateTitle": { "type": "string", "maxLength": 160 },
+        "certificateNote": { "type": "string", "maxLength": 300 },
+        "certificateIssuedAt": { "type": "string", "format": "date-time" },
+        "adminNotes": { "type": "string", "maxLength": 2000 },
+        "declarationAccepted": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "eventId", "eventName", "gameId", "gameName", "participationType",
+        "registrationReference", "lookupKey", "participant", "team", "customAnswers",
+        "registrationStatus", "selectionStatus", "teamAssignment", "matchStatus", "result",
+        "adminNotes", "declarationAccepted", "createdAt", "updatedAt"
+      ]
+    },
+    "StatusHistoryEntry": {
+      "title": "StatusHistoryEntry",
+      "description": "Immutable audit trail of registration and competition status changes.",
+      "type": "object",
+      "properties": {
+        "field": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "oldValue": { "type": "string", "maxLength": 200 },
+        "newValue": { "type": "string", "maxLength": 200 },
+        "changedBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "changedByName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "reason": { "type": "string", "maxLength": 500 },
+        "changedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["field", "oldValue", "newValue", "changedBy", "changedByName", "reason", "changedAt"]
+    },
+    "RegistrationLookup": {
+      "title": "RegistrationLookup",
+      "description": "Non-enumerable status & certificate lookup keyed by SHA-256 hash of reference and enrollment number.",
+      "type": "object",
+      "properties": {
+        "registrationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "registrationReference": { "type": "string", "minLength": 6, "maxLength": 40 },
+        "eventId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "eventName": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "gameId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "gameName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "participantName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "enrollmentNumber": { "type": "string", "minLength": 2, "maxLength": 40 },
+        "branch": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "batch": { "type": "string", "maxLength": 40 },
+        "year": { "type": "string", "minLength": 1, "maxLength": 30 },
+        "teamName": { "type": "string", "maxLength": 120 },
+        "participationType": { "type": "string", "enum": ["individual", "doubles", "team"] },
+        "registrationStatus": { "type": "string", "enum": ["pending", "approved", "rejected", "waitlisted", "withdrawn", "cancelled"] },
+        "selectionStatus": { "type": "string", "enum": ["not_reviewed", "shortlisted", "selected", "not_selected"] },
+        "teamAssignment": { "type": "string", "maxLength": 100 },
+        "matchStatus": { "type": "string", "enum": ["not_scheduled", "scheduled", "in_progress", "completed", "did_not_attend"] },
+        "result": { "type": "string", "enum": ["no_result", "winner", "runner_up", "participant", "disqualified"] },
+        "certificateIssued": { "type": "boolean" },
+        "certificateId": { "type": "string", "maxLength": 60 },
+        "certificateTitle": { "type": "string", "maxLength": 160 },
+        "certificateNote": { "type": "string", "maxLength": 300 },
+        "certificateIssuedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "registrationId", "registrationReference", "eventId", "eventName",
+        "gameId", "gameName", "participantName", "enrollmentNumber",
+        "branch", "year", "teamName", "participationType",
+        "registrationStatus", "selectionStatus", "teamAssignment", "matchStatus", "result",
+        "createdAt", "updatedAt"
+      ]
+    },
+    "StudentPortalEntry": {
+      "title": "StudentPortalEntry",
+      "description": "PII-free student registration summary for multi-event and multi-game tracking and certificate download, keyed by SHA-256 of enrollment and phone.",
+      "type": "object",
+      "properties": {
+        "portalKey": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$" },
+        "registrationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "registrationReference": { "type": "string", "minLength": 6, "maxLength": 40 },
+        "eventId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "eventName": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "gameId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "gameName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "participantName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "enrollmentNumber": { "type": "string", "minLength": 2, "maxLength": 40 },
+        "branch": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "batch": { "type": "string", "maxLength": 40 },
+        "year": { "type": "string", "minLength": 2, "maxLength": 30 },
+        "teamName": { "type": "string", "maxLength": 120 },
+        "participationType": { "type": "string", "enum": ["individual", "doubles", "team"] },
+        "registrationStatus": { "type": "string", "enum": ["pending", "approved", "rejected", "waitlisted", "withdrawn", "cancelled"] },
+        "selectionStatus": { "type": "string", "enum": ["not_reviewed", "shortlisted", "selected", "not_selected"] },
+        "teamAssignment": { "type": "string", "maxLength": 100 },
+        "matchStatus": { "type": "string", "enum": ["not_scheduled", "scheduled", "in_progress", "completed", "did_not_attend"] },
+        "result": { "type": "string", "enum": ["no_result", "winner", "runner_up", "participant", "disqualified"] },
+        "certificateIssued": { "type": "boolean" },
+        "certificateId": { "type": "string", "maxLength": 60 },
+        "certificateTitle": { "type": "string", "maxLength": 160 },
+        "certificateNote": { "type": "string", "maxLength": 300 },
+        "certificateIssuedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "portalKey", "registrationId", "registrationReference", "eventId", "eventName",
+        "gameId", "gameName", "participantName", "enrollmentNumber", "branch", "year",
+        "teamName", "participationType", "registrationStatus", "selectionStatus",
+        "teamAssignment", "matchStatus", "result", "certificateIssued",
+        "certificateId", "certificateTitle", "certificateNote", "createdAt", "updatedAt"
+      ]
+    },
+    "PublishedResult": {
+      "title": "PublishedResult",
+      "description": "Public tournament podium and match result entry published by Sports Club administrators without student contact PII.",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "eventName": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "gameId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "gameName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "category": { "type": "string", "enum": ["Indoor", "Outdoor", "Athletics", "Esports", "Other"] },
+        "participationType": { "type": "string", "enum": ["individual", "doubles", "team"] },
+        "winnerDisplayName": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "branch": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "year": { "type": "string", "minLength": 1, "maxLength": 30 },
+        "placement": { "type": "string", "enum": ["winner", "runner_up", "third_place", "finalist", "participant"] },
+        "scoreOrRemark": { "type": "string", "maxLength": 300 },
+        "registrationId": { "type": "string", "maxLength": 128 },
+        "published": { "type": "boolean" },
+        "createdBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "eventId", "eventName", "gameId", "gameName", "category", "participationType",
+        "winnerDisplayName", "branch", "year", "placement", "scoreOrRemark",
+        "registrationId", "published", "createdBy", "createdAt", "updatedAt"
+      ]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Public notice or schedule announcement published by the Sports Club, with optional notice image/circular.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 2, "maxLength": 200 },
+        "body": { "type": "string", "minLength": 2, "maxLength": 5000 },
+        "category": { "type": "string", "enum": ["General", "Event Update", "Schedule", "Result", "Urgent"] },
+        "eventId": { "type": "string", "maxLength": 128 },
+        "imageUrl": { "type": "string", "maxLength": 450000 },
+        "status": { "type": "string", "enum": ["draft", "published", "archived"] },
+        "publishAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdByName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "body", "category", "eventId", "status", "publishAt", "createdBy", "createdByName", "createdAt", "updatedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Append-only record of privileged administrative actions and exports.",
+      "type": "object",
+      "properties": {
+        "actorUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "actorEmail": { "type": "string", "minLength": 3, "maxLength": 200 },
+        "actorName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "action": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "entityType": { "type": "string", "minLength": 2, "maxLength": 60 },
+        "entityId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "summary": { "type": "string", "minLength": 2, "maxLength": 500 },
+        "metadata": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["actorUid", "actorEmail", "actorName", "action", "entityType", "entityId", "summary", "metadata", "createdAt"]
+    },
+    "SiteSettings": {
+      "title": "SiteSettings",
+      "description": "Global dynamic Sports Club configuration, website sections, live event showcase copy, certificate signatories, branch/year lists, contact details, and privacy notice.",
+      "type": "object",
+      "properties": {
+        "clubName": { "type": "string", "minLength": 2, "maxLength": 150 },
+        "institutionName": { "type": "string", "minLength": 2, "maxLength": 200 },
+        "tagline": { "type": "string", "maxLength": 250 },
+        "heroEyebrow": { "type": "string", "maxLength": 120 },
+        "heroTitle": { "type": "string", "maxLength": 160 },
+        "heroSubtitle": { "type": "string", "maxLength": 400 },
+        "heroCtaLabel": { "type": "string", "maxLength": 60 },
+        "showcaseTitle": { "type": "string", "maxLength": 140 },
+        "showcaseSubtitle": { "type": "string", "maxLength": 300 },
+        "aboutMissionTitle": { "type": "string", "maxLength": 140 },
+        "aboutMissionBody": { "type": "string", "maxLength": 2000 },
+        "aboutHighlights": { "type": "array", "description": "Bounded list (max 8) of admin-configured club pillars and facilities." },
+        "certificateAuthorityTitle": { "type": "string", "maxLength": 120 },
+        "certificateHeaderSubtitle": { "type": "string", "maxLength": 160 },
+        "certificateFooterNote": { "type": "string", "maxLength": 300 },
+        "sectionVisibility": { "type": "object" },
+        "contactEmail": { "type": "string", "maxLength": 200 },
+        "contactPhone": { "type": "string", "maxLength": 40 },
+        "campusAddress": { "type": "string", "maxLength": 400 },
+        "facultyCoordinator": { "type": "string", "maxLength": 150 },
+        "studentCoordinator": { "type": "string", "maxLength": 150 },
+        "branches": { "type": "array" },
+        "years": { "type": "array" },
+        "privacyText": { "type": "string", "maxLength": 3000 },
+        "showPublicResults": { "type": "boolean" },
+        "updatedBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "clubName", "institutionName", "tagline", "contactEmail", "contactPhone",
+        "campusAddress", "facultyCoordinator", "studentCoordinator",
+        "branches", "years", "privacyText", "showPublicResults", "updatedBy", "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/admins/{uid}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Administrator role profiles indexed by Firebase Auth UID."
+    },
+    "/adminInvites/{inviteId}": {
+      "schema": { "$ref": "#/entities/AdminInvite" },
+      "description": "Pre-authorized administrator email invitations managed by super admins."
+    },
+    "/studentAccounts/{uid}": {
+      "schema": { "$ref": "#/entities/StudentAccount" },
+      "description": "Student Google sign-in accounts, login counts, profile status, and admin block controls."
+    },
+    "/studentActivity/{activityId}": {
+      "schema": { "$ref": "#/entities/StudentActivity" },
+      "description": "Append-only timeline of student website activity and admin moderation events."
+    },
+    "/studentProfiles/{uid}": {
+      "schema": { "$ref": "#/entities/StudentProfile" },
+      "description": "Student academic identity profiles keyed by Firebase Auth UID."
+    },
+    "/enrollmentLocks/{regNoHash}": {
+      "schema": { "$ref": "#/entities/EnrollmentLock" },
+      "description": "PII-free uniqueness lock enforcing unique enrollment numbers per student account."
+    },
+    "/events/{eventId}": {
+      "schema": { "$ref": "#/entities/SportEvent" },
+      "description": "Sports events (e.g., UMANG'27) managed by the Sports Club."
+    },
+    "/events/{eventId}/games/{gameId}": {
+      "schema": { "$ref": "#/entities/EventGame" },
+      "description": "Games and dynamic registration field configurations belonging to an event."
+    },
+    "/eventPhotos/{photoId}": {
+      "schema": { "$ref": "#/entities/EventPhoto" },
+      "description": "Public photo gallery images categorized by event."
+    },
+    "/issuedCertificates/{certId}": {
+      "schema": { "$ref": "#/entities/IssuedCertificate" },
+      "description": "Individual and batch-issued winner, selected, and participation certificates."
+    },
+    "/certificateIndexes/{regNoHash}/items/{certId}": {
+      "schema": { "$ref": "#/entities/CertificateIndexEntry" },
+      "description": "Non-enumerable SHA-256 registration number index enabling signed-in students to retrieve certificates issued using their registration number."
+    },
+    "/gameCounters/{counterId}": {
+      "schema": { "$ref": "#/entities/GameCounter" },
+      "description": "Atomic registration count tracker per event and game."
+    },
+    "/registrationLocks/{lockId}": {
+      "schema": { "$ref": "#/entities/RegistrationLock" },
+      "description": "PII-free uniqueness lock documents preventing duplicate registrations."
+    },
+    "/registrations/{registrationId}": {
+      "schema": { "$ref": "#/entities/Registration" },
+      "description": "Top-level participant registrations containing PII and admin-managed statuses."
+    },
+    "/registrations/{registrationId}/statusHistory/{historyId}": {
+      "schema": { "$ref": "#/entities/StatusHistoryEntry" },
+      "description": "Immutable history of status and progress updates for a registration."
+    },
+    "/registrationLookups/{lookupKey}": {
+      "schema": { "$ref": "#/entities/RegistrationLookup" },
+      "description": "Non-enumerable registration status & certificate projection keyed by SHA-256 hash."
+    },
+    "/studentPortals/{portalKey}/entries/{registrationId}": {
+      "schema": { "$ref": "#/entities/StudentPortalEntry" },
+      "description": "Non-enumerable student portal projection for multi-event and multi-game registration tracking and certificate download."
+    },
+    "/publishedResults/{resultId}": {
+      "schema": { "$ref": "#/entities/PublishedResult" },
+      "description": "Public tournament podium and match results published by Sports Club administrators."
+    },
+    "/announcements/{announcementId}": {
+      "schema": { "$ref": "#/entities/Announcement" },
+      "description": "Public notices and event updates."
+    },
+    "/auditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Append-only security and administration audit logs."
+    },
+    "/siteSettings/{settingId}": {
+      "schema": { "$ref": "#/entities/SiteSettings" },
+      "description": "Global site configuration documents (specifically /siteSettings/general)."
+    }
+  }
+}

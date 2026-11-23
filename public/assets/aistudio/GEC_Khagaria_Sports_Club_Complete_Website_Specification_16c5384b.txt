@@ -1,0 +1,1229 @@
+🏆
+
+SPORTS CLUB
+MANAGEMENT WEBSITE
+
+Complete Project Requirements, Product Specification,
+Database Design & Development Blueprint
+
+GOVERNMENT ENGINEERING COLLEGE, KHAGARIA
+SPORTS CLUB
+
+Developer handoff document • Version 1.0
+
+Document Control
+
+How to Use This Document
+
+Give this complete document to the software developer or AI coding assistant as the master project specification. Build the project in the phases listed near the end. Do not skip database rules, role-based access control, validation, backups and testing.
+
+Where the document says 'recommended', it is a proposed default that the project owner can change. Do not invent official college logos, contact details, policies, event dates or payment requirements. Use editable placeholders until the Sports Club provides verified information.
+
+1. Project Overview
+
+Create a modern, responsive, secure, Firebase-connected website for the Sports Club of Government Engineering College, Khagaria. The website must support multiple independent events. Each event can contain multiple games. Each game can accept individual or team registrations, use its own registration form fields, and have its own participant list and status workflow.
+
+The central requirement is one admin system that controls all events, games, registrations, participants, announcements and downloadable reports. For example, an administrator creates the event UMANG'27, adds Cricket, Volleyball, Kabaddi, Football, Badminton, Chess and other games, opens registration, reviews entries and exports filtered participant records.
+
+1.1 Main Goals
+
+Publish a professional public website for the Sports Club.
+
+Allow admins to create, edit, publish, close, archive and manage multiple events.
+
+Allow each event to contain any number of games.
+
+Support individual, doubles and team-based registrations.
+
+Generate registration forms based on the selected game and its configured fields.
+
+Maintain a central participant database with event-wise and game-wise status.
+
+Search, filter, select and export all or selected participant records.
+
+Provide secure admin access with different permission levels.
+
+Work reliably on mobile phones, tablets and desktop computers.
+
+Keep the website maintainable so future sports events can be added without rebuilding it.
+
+1.2 Success Criteria
+
+An authorized admin can create an event and add games without developer assistance.
+
+A student can find an open event, choose a game and submit a valid registration.
+
+An admin can find a registration using name, registration number, phone or email.
+
+An admin can filter by event, game, branch, year, status and date range.
+
+An admin can export all filtered rows or only manually selected rows to Excel/CSV.
+
+A participant's status is tracked separately for each game registration.
+
+Unauthorized users cannot access private participant data or admin functions.
+
+The website is usable on common Android mobile browsers and desktop browsers.
+
+2. Scope and User Roles
+
+2.1 User Roles
+
+The initial release may use one or more super admins. The data model and authorization system must support multiple admins and future role expansion.
+
+2.2 Permission Matrix
+
+3. Website Information Architecture
+
+3.1 Public Website Pages
+
+3.2 Admin Website Pages
+
+4. Visual Design and User Experience
+
+4.1 Design Direction
+
+Use a modern college sports identity: energetic, clean, confident and easy to navigate.
+
+Suggested palette: deep navy (#142D50), sports orange (#F28C28), white (#FFFFFF), light grey (#F4F6F8), and accessible text colours.
+
+Use a consistent typography system, clear headings, readable form labels and visible focus states.
+
+Use genuine college/club logos and event photos only after they are supplied or approved.
+
+Do not use copyrighted sports-team logos or unlicensed images.
+
+Use responsive cards, clear tables, compact filter controls and accessible status badges.
+
+Avoid excessive animation; prioritise speed, readability and mobile usability.
+
+4.2 Public Homepage Layout
+
+Top navigation: logo, Home, About, Events, Announcements, Contact and an Admin Login link.
+
+Hero: 'Sports Club — Government Engineering College, Khagaria', short tagline and Explore Events button.
+
+Featured event area showing current featured event, poster, dates and View Event button.
+
+Upcoming events grid with event status and registration CTA.
+
+Sports categories or game highlights.
+
+Club highlights/statistics only when real data is available.
+
+Latest announcements.
+
+Footer with college/club identity, useful links, verified contact information and privacy notice.
+
+4.3 Admin Dashboard Layout
+
+Sidebar: Dashboard, Events, Games, Participants, Reports, Announcements, Admins and Settings.
+
+Top bar: page title, current admin identity, notifications and logout.
+
+Summary cards: total events, active events, total registrations and pending approvals.
+
+Charts: registrations by event/game and status distribution, based on actual Firestore data.
+
+Recent registrations table and upcoming event list.
+
+Quick actions: Create Event, Add Game, View Participants and Export Report.
+
+4.4 Accessibility and Responsive Behaviour
+
+Support keyboard navigation and visible focus indicators.
+
+Associate every form input with a visible label.
+
+Do not communicate status by colour alone; include text labels.
+
+Use sufficient colour contrast and accessible button names.
+
+On small screens, convert wide tables into responsive cards or horizontally scrollable tables.
+
+Keep forms usable with touch controls and mobile keyboards.
+
+Show clear loading, empty, success and error states.
+
+5. Event Management Requirements
+
+5.1 Event Lifecycle
+
+5.2 Event Fields
+
+5.3 Event Admin Actions
+
+Create event using a guided form.
+
+Save as draft before publication.
+
+Preview the public event page.
+
+Add and manage multiple games under the event.
+
+Publish, unpublish, open or close registration.
+
+Duplicate an event configuration as a starting template, while generating new IDs and dates.
+
+Archive completed events without deleting historical registrations.
+
+Delete only drafts or records with a safe confirmation and dependency check. Prefer archive over hard deletion.
+
+6. Game Management Requirements
+
+6.1 Game Types
+
+6.2 Game Fields
+
+6.3 Dynamic Game Form Builder
+
+The admin must be able to define extra questions for each game without editing source code. Examples: preferred playing position for football, bowling/batting preference for cricket, weight category for a relevant event if the organiser confirms it, or a document upload if genuinely required.
+
+Field types: short text, paragraph, number, dropdown, single choice, checkboxes, date and file upload (only if enabled and secured).
+
+Settings: label, help text, required/optional, options, validation, order and visibility.
+
+Common identity fields should not be duplicated unnecessarily.
+
+Store custom answers as structured key/value data with stable field IDs.
+
+When a form field changes after registrations exist, preserve historical answers and warn the admin before changing or removing the field.
+
+Do not ask for sensitive personal information unless there is a documented need.
+
+7. Registration and Participant Management
+
+7.1 Common Registration Fields
+
+7.2 Registration Workflow
+
+Student opens the Events page.
+
+Student selects a published event.
+
+Student selects an open game.
+
+Website checks that registration is open and capacity/deadline has not been reached.
+
+Website displays the correct individual/doubles/team form and custom questions.
+
+Student enters details and accepts the registration declaration/privacy notice.
+
+Client validates fields; server-side rules/function validates critical constraints.
+
+A unique registration record is created and a non-guessable reference is returned.
+
+Student sees a confirmation page and, if enabled, receives a confirmation email.
+
+Admin sees the new registration in the dashboard and can review it.
+
+7.3 Duplicate Registration Protection
+
+Define duplicate rules with the Sports Club: normally one active registration per participant per event/game.
+
+Use a deterministic or transaction-checked uniqueness key based on normalized participant identity + eventId + gameId.
+
+Do not rely only on frontend checks; enforce duplicate prevention through a trusted backend transaction or callable function.
+
+Allow an authorised admin to resolve genuine duplicate cases with an audit record.
+
+For team entries, prevent duplicate team submissions where the same captain/team key is used.
+
+7.4 Team Registration
+
+Captain submits the team registration and provides team name and member details.
+
+Team size must follow the game's configured minimum and maximum.
+
+Each member should include the agreed identity fields such as name, enrollment number, branch and year.
+
+The system should check duplicate member enrollment numbers within the same team and, where policy requires, across teams for the same game.
+
+Optionally allow a captain to invite members to confirm participation; this can be a later enhancement.
+
+Admin can view the team as one entry and inspect its member list.
+
+8. Registration Status and Competition Tracking
+
+8.1 Registration Statuses
+
+8.2 Competition Progress (Separate From Registration Status)
+
+Do not combine approval status and match progress into one field. A registration may be approved but the student may not yet have played. Track these separately.
+
+Every status update should record who changed it, when it changed, the previous value and an optional note/reason. The admin must be able to filter by both registration status and competition progress.
+
+9. Admin Participant Dashboard
+
+9.1 Participant Table Columns
+
+Select checkbox
+
+Participant name
+
+Registration/enrollment number
+
+Branch and year
+
+Phone and email (restricted to authorised admins)
+
+Event
+
+Game
+
+Individual/team name and captain where relevant
+
+Registration date
+
+Registration status
+
+Competition progress
+
+Actions: view, approve, reject, waitlist, edit permitted fields, add note
+
+9.2 Search and Filters
+
+9.3 Bulk Actions
+
+Select one or more rows or select all results on the current filtered set.
+
+Clearly distinguish 'select this page' from 'select all matching filtered records'.
+
+Bulk approve, reject, waitlist or update status only after a confirmation step.
+
+Show the number of affected records before applying an action.
+
+Log bulk actions and their affected registration IDs.
+
+Never apply bulk actions to records outside the admin's event permissions.
+
+9.4 Registration Detail View
+
+Show all participant information and custom answers.
+
+Show team members in a separate section for team entries.
+
+Show event/game information and registration timestamp.
+
+Show status history and admin notes.
+
+Allow permitted status updates with an optional reason.
+
+Show a print-friendly view if useful.
+
+Mask phone/email in list views for roles that do not need full details.
+
+10. Excel, CSV and Reports
+
+10.1 Export Requirements
+
+Export must use the exact active filters and selected rows. The UI must clearly state whether it is exporting selected records, the current page, or all records matching filters.
+
+10.2 Excel Workbook Structure
+
+Sheet 1 — Registrations: one row per registration, with event, game, participant/captain, branch, year, status and timestamps.
+
+Sheet 2 — Team Members: one row per team member, linked by registration ID.
+
+Sheet 3 — Summary: counts by event, game, branch and status.
+
+Sheet 4 — Custom Answers (optional): registration ID, field label and answer, or flatten selected fields into the main sheet.
+
+10.3 Export Safety
+
+Exports must be generated only after server-side authorisation.
+
+Do not expose unrestricted Firestore queries or download URLs to public visitors.
+
+Escape spreadsheet formula-leading characters in untrusted text values to reduce CSV/Excel formula injection risk.
+
+Use stable column headings and consistent date/time formatting.
+
+Use pagination/batched fetching for large exports.
+
+Record export actions in the audit log, including admin, filters and timestamp.
+
+Do not include private fields unless the admin role is permitted to export them.
+
+11. Firebase Architecture
+
+11.1 Recommended Technology Stack
+
+Use current stable versions and official Firebase SDKs at implementation time. Keep Firebase configuration in environment variables. Firebase client configuration is not a secret by itself, but security must come from Authentication, Firestore/Storage Rules, App Check where appropriate, and trusted backend validation.
+
+11.2 Firestore Collection Design
+
+/admins/{uid}
+  displayName, email, role, active, assignedEventIds[], permissions[], createdAt, updatedAt
+
+/events/{eventId}
+  name, slug, shortDescription, description, bannerPath,
+  startAt, endAt, registrationStartAt, registrationEndAt,
+  venue, status, featured, createdBy, updatedBy, createdAt, updatedAt
+
+/events/{eventId}/games/{gameId}
+  name, category, participationType, description, rules,
+  maxParticipants, maxTeams, minTeamSize, maxTeamSize,
+  registrationDeadline, registrationStatus, eligibility,
+  customFields[], createdAt, updatedAt
+
+/registrations/{registrationId}
+  eventId, gameId, participant, team, customAnswers,
+  registrationStatus, selectionStatus, matchStatus, result,
+  registrationReference, createdAt, updatedAt
+
+/registrations/{registrationId}/statusHistory/{historyId}
+  field, oldValue, newValue, changedBy, reason, changedAt
+
+/announcements/{announcementId}
+  title, body, imagePath, status, publishAt, createdBy, createdAt
+
+/auditLogs/{logId}
+  actorUid, action, entityType, entityId, summary, metadata, createdAt
+
+/siteSettings/general
+  clubName, institutionName, logoPath, contactEmail, contactPhone,
+  socialLinks, privacyText, updatedAt
+
+11.3 Data Modelling Notes
+
+Use generated document IDs. Keep eventId and gameId references in registration documents.
+
+Store game documents as subcollections under their event to preserve the event/game hierarchy.
+
+Keep registrations in a top-level collection for efficient global participant search and exports.
+
+Use server timestamps for createdAt/updatedAt and status history.
+
+Use denormalised eventName and gameName snapshots in registration documents if needed for reliable historical exports after a game is renamed.
+
+Do not store large image files in Firestore; store them in Firebase Storage and keep the storage path in Firestore.
+
+Define Firestore indexes for the filter combinations actually used by the dashboard.
+
+Avoid storing unnecessary sensitive data. Establish a retention and deletion policy with the college.
+
+12. Security, Privacy and Access Control
+
+Security is a core requirement, not a final polish task. Participant details such as phone numbers, email addresses and enrollment numbers are private student information.
+
+12.1 Authentication
+
+Only invited/approved administrators can access the admin dashboard.
+
+Do not provide public admin self-registration.
+
+Create admin accounts through a trusted super-admin workflow or Firebase Admin SDK in a secure environment.
+
+Use Firebase Authentication email/password or an institution-approved sign-in provider.
+
+Enable password reset and account deactivation.
+
+Use custom claims or a trusted admin-role document, with rules that prevent users from assigning themselves elevated roles.
+
+Require re-authentication for sensitive actions where appropriate.
+
+12.2 Firestore and Storage Rules
+
+Write and test restrictive Firestore and Storage Security Rules before launch. Public users should only read published public event/game fields. Public registration creation should be limited to valid registration submissions, ideally through a callable Cloud Function that validates the payload. Public users must not read the global registrations collection. Only authorised admins may read participant records, and event admins must be restricted to assigned events.
+
+// Conceptual policy only — not production-ready rules.
+// Implement and test complete rules in Firebase Emulator Suite.
+
+Public:
+  read published event and game information only
+  cannot read registrations, admin records or audit logs
+  cannot create/update events, games, admin roles or statuses
+
+Student:
+  may submit a valid registration through a trusted endpoint
+  may read only their own registration through a verified ownership flow
+  cannot change approval status or admin-only fields
+
+Event admin:
+  may read/manage registrations for assigned event IDs
+  may update only permitted registration/status fields
+  cannot grant themselves roles or edit global security settings
+
+Super admin:
+  full authorised management access
+  all privileged changes are audit logged
+
+12.3 Privacy Requirements
+
+Display a short privacy notice before registration explaining why information is collected and who can access it.
+
+Collect only data needed for event administration.
+
+Do not publicly display phone numbers, email addresses or enrollment numbers.
+
+Use secure, non-guessable registration references; do not expose sequential IDs as access credentials.
+
+If students can check their own registration, verify identity through an appropriate secure method such as authenticated login or one-time verification.
+
+Define how long registrations are retained and who can request correction/deletion.
+
+Do not upload identity documents or sensitive records unless the institution requires them and access controls are in place.
+
+12.4 Audit Logging
+
+Log event creation, editing, publication, closure and deletion/archive.
+
+Log game creation/editing and registration form changes.
+
+Log approval, rejection, waitlisting and other status changes.
+
+Log exports, bulk actions, admin invitations, role changes and account deactivation.
+
+Audit entries should be append-only for ordinary admins and readable only by authorised roles.
+
+13. Notifications and Communication
+
+Show an on-screen success message after registration.
+
+Optionally send registration confirmation email using a trusted email service or Cloud Function.
+
+Optionally send approval/rejection/waitlist emails with safe, editable templates.
+
+Display published announcements on the public website.
+
+Do not promise SMS/WhatsApp notifications unless a provider and budget are approved.
+
+Provide notification settings and test mode for admins before sending messages to real participants.
+
+14. Validation and Business Rules
+
+15. Search, Pagination and Performance
+
+Use server-side filtering and pagination for large registration collections.
+
+Default page size may be 25 or 50, with options such as 25/50/100.
+
+Debounce text search and avoid fetching the full database for each keystroke.
+
+Create Firestore composite indexes for supported combinations of eventId, gameId, status, branch, year and createdAt.
+
+Show loading skeletons, empty states and clear error messages.
+
+Use image compression/responsive images for event banners.
+
+Lazy-load non-critical routes and images.
+
+Avoid unnecessary real-time listeners on large participant lists; use one-time paginated queries unless live updates are genuinely needed.
+
+16. Suggested Folder Structure
+
+gec-sports-club/
+├── public/
+│   ├── favicon.ico
+│   └── assets/
+├── src/
+│   ├── app/
+│   │   ├── router.tsx
+│   │   └── providers.tsx
+│   ├── components/
+│   │   ├── common/
+│   │   ├── layout/
+│   │   ├── forms/
+│   │   ├── tables/
+│   │   └── status/
+│   ├── features/
+│   │   ├── events/
+│   │   ├── games/
+│   │   ├── registrations/
+│   │   ├── participants/
+│   │   ├── reports/
+│   │   ├── announcements/
+│   │   └── admins/
+│   ├── pages/
+│   │   ├── public/
+│   │   └── admin/
+│   ├── services/
+│   │   ├── firebase/
+│   │   ├── auth/
+│   │   ├── events/
+│   │   ├── registrations/
+│   │   └── exports/
+│   ├── hooks/
+│   ├── schemas/
+│   ├── types/
+│   ├── utils/
+│   └── styles/
+├── functions/
+│   └── src/
+│       ├── registrations/
+│       ├── admin/
+│       ├── exports/
+│       └── audit/
+├── firestore.rules
+├── firestore.indexes.json
+├── storage.rules
+├── firebase.json
+├── .env.example
+├── README.md
+└── package.json
+
+17. Key User Journeys
+
+17.1 Admin Creates UMANG'27
+
+Admin signs in and opens Events → Create Event.
+
+Enters UMANG'27, description, banner, dates, venue and registration window.
+
+Saves as draft and previews the public page.
+
+Adds Cricket as a team game, sets team size and adds cricket-specific questions.
+
+Adds Volleyball, Kabaddi, Football, Badminton and other games with their participation types.
+
+Reviews all game forms and publishes the event.
+
+Opens registration when ready.
+
+17.2 Student Registers
+
+Student opens Events and selects UMANG'27.
+
+Student chooses a game such as Kabaddi.
+
+Website shows the team registration form configured for Kabaddi.
+
+Student enters captain and team member details and submits.
+
+System validates capacity, deadline, required fields and duplicate rules.
+
+Registration is stored and a reference/confirmation is displayed.
+
+17.3 Admin Reviews Participants
+
+Admin opens Participants.
+
+Selects event UMANG'27 and game Kabaddi.
+
+Filters by branch and status Pending.
+
+Opens a registration, checks participant/team details and approves or rejects with a reason.
+
+The system records the status change and updates dashboard counts.
+
+Admin exports the filtered Kabaddi list to Excel.
+
+18. Testing and Quality Assurance
+
+18.1 Functional Test Checklist
+
+Create, edit, publish, close and archive an event.
+
+Add, edit, close and reorder multiple games within one event.
+
+Verify individual, doubles and team registration flows.
+
+Verify dynamic custom fields and required-field validation.
+
+Verify registration open/close dates and capacity limits.
+
+Verify duplicate registration prevention under simultaneous submissions.
+
+Verify all status transitions and status history.
+
+Verify event/game/branch/year/status/date filters.
+
+Verify selected-row and filtered-result exports.
+
+Verify Excel and CSV output, including team member details.
+
+Verify admin role and assigned-event restrictions.
+
+Verify registration confirmation and optional notifications.
+
+18.2 Security Test Checklist
+
+Unauthenticated visitor cannot access admin routes or participant data.
+
+Student cannot read another student's registration.
+
+Event admin cannot access an unassigned event.
+
+Event admin cannot grant admin roles or edit global settings.
+
+Public user cannot alter event/game data or registration status.
+
+Direct Firestore API calls are blocked when unauthorised, not merely hidden in UI.
+
+Storage files cannot be read or overwritten by unauthorised users.
+
+Export endpoint checks role and scope on the server.
+
+Sensitive admin actions create audit log entries.
+
+18.3 Compatibility and Usability
+
+Test Android Chrome and common mobile screen sizes.
+
+Test desktop Chrome, Firefox and Edge.
+
+Test keyboard navigation and form accessibility.
+
+Test slow network, failed uploads, expired login and Firebase errors.
+
+Test large participant lists and exports.
+
+19. Deployment and Operations
+
+19.1 Setup Steps
+
+Create a Git repository and initialise the React/Vite/TypeScript project.
+
+Create a Firebase project under an account controlled by the college/authorised project owner.
+
+Enable Firebase Authentication providers selected by the club.
+
+Create Firestore database in the appropriate region after considering data governance requirements.
+
+Enable Firebase Storage if banners or uploads are required.
+
+Set up Cloud Functions and billing plan requirements if trusted backend functions are used.
+
+Configure environment variables and Firebase project aliases.
+
+Write Firestore/Storage Rules and indexes before production data is entered.
+
+Create the first super-admin securely using a trusted setup script or server-side process.
+
+Deploy frontend to Firebase Hosting and backend functions.
+
+Connect an approved custom domain if available.
+
+Test production flows with test accounts before public launch.
+
+19.2 Environment Variables
+
+# .env.example
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+
+# Never put service-account private keys or Admin SDK secrets
+# in VITE_ variables or browser-side source code.
+
+19.3 Backups and Maintenance
+
+Define a backup/export schedule for Firestore data and verify restore procedures.
+
+Keep source code in version control.
+
+Use separate development, staging and production Firebase projects.
+
+Review Firebase usage, quotas, costs and security alerts.
+
+Update dependencies and monitor build/deployment failures.
+
+Maintain a documented process for changing admin access when committee members change.
+
+Archive old events instead of deleting historical records.
+
+20. Development Plan and Deliverables
+
+20.1 Final Handover Deliverables
+
+Complete source code repository.
+
+Working public website and admin dashboard.
+
+Firebase project configuration and documented ownership.
+
+Firestore schema, security rules, indexes and Storage rules.
+
+Cloud Functions source code, if used.
+
+Environment variable example file without secrets.
+
+Admin user creation and role-management instructions.
+
+Participant import/export and backup instructions.
+
+Test report and known limitations.
+
+Deployment and maintenance guide.
+
+21. Decisions to Confirm Before Production
+
+The developer can begin using the recommended defaults, but the following points must be confirmed by the Sports Club before the production launch.
+
+22. Master Build Prompt for an AI Coding Tool
+
+The following prompt can be copied together with this document into an AI coding tool. The document remains the detailed source of truth.
+
+You are a senior full-stack engineer and product designer. Build a production-quality,
+responsive Sports Club Management Website for Government Engineering College, Khagaria.
+
+Treat the attached project specification as the authoritative requirements document.
+Do not omit requirements silently. If a requirement is ambiguous, use the recommended
+default in the document and record the assumption in README.md.
+
+Core architecture:
+- React + Vite + TypeScript + Tailwind CSS.
+- Firebase Authentication, Cloud Firestore, Firebase Storage and Firebase Hosting.
+- Use trusted Cloud Functions for privileged operations such as duplicate-safe
+  registration creation, role administration, status changes where appropriate,
+  audit logging and large exports.
+- Implement restrictive Firestore and Storage Security Rules and test them.
+- Never place Firebase Admin SDK credentials in browser code.
+
+Core product:
+- Public Sports Club website.
+- One central admin dashboard.
+- Multiple events; every event can contain multiple games.
+- Individual, doubles and team registration.
+- Admin-configurable game-specific registration fields.
+- Participant search, filtering, selection, approval and status tracking.
+- Separate registration status from competition progress.
+- Export all, filtered or selected participant records to Excel and CSV.
+- Multiple admins with role-based permissions and event assignment.
+- Audit logs, responsive design, accessibility, error/loading/empty states.
+
+Build in phases:
+1. Project setup, design system and routes.
+2. Firebase setup, authentication and security rules.
+3. Event and game management.
+4. Dynamic registration forms and trusted duplicate prevention.
+5. Participant management, statuses and audit history.
+6. Filters, pagination and secure Excel/CSV exports.
+7. Announcements, public pages and optional notifications.
+8. Automated tests, Firebase Emulator tests, documentation and deployment.
+
+Engineering rules:
+- Use TypeScript types and runtime schemas for all important data.
+- Keep components reusable and features modular.
+- Do not hardcode event names or game lists; admins create them dynamically.
+- Use server timestamps and generated document IDs.
+- Validate all critical data on the trusted backend, not only in the browser.
+- Protect participant PII and restrict exports by role.
+- Include seed/demo data only in development, clearly separated from production.
+- Provide a README with exact setup, environment, Firebase, deployment and admin
+  bootstrap instructions.
+- Do not claim a feature is complete until its UI, backend, validation, permissions
+  and tests are implemented.
+- After each phase, report files created, features completed, tests run and remaining work.
+
+Start by reviewing the complete specification and proposing the architecture and
+implementation plan. Then implement phase by phase without replacing real Firebase
+functionality with fake local-only data.
+
+23. Final Product Definition
+
+The finished product is a single central platform for the Government Engineering College, Khagaria Sports Club. It must allow the club to run UMANG'27 and future events from the same website, create unlimited event-specific games, collect individual and team registrations, track each registration and competition status, manage participants through secure admin roles, and download accurate Excel/CSV reports based on filters or manual selection.
+
+The system is not complete if it is only a static design or frontend demo. Completion requires a functioning Firebase backend, protected admin access, real Firestore persistence, secure registration workflows, participant management, export functionality, testing and deployment documentation.
+
+
+[TABLE 1]
+
+Item | Details
+
+Project name | GEC Khagaria Sports Club Management Website
+
+Organization | Government Engineering College, Khagaria — Sports Club
+
+Document purpose | Single source of truth for planning, designing, building, testing and deploying the website.
+
+Primary users | Students/participants, event administrators, sports coordinators and super administrators.
+
+Recommended stack | React + Vite + TypeScript + Tailwind CSS + Firebase
+
+Data platform | Firebase Authentication, Cloud Firestore, Cloud Storage, Firebase Hosting
+
+Export formats | Excel (.xlsx) and CSV (.csv)
+
+Version | 1.0 — baseline specification; confirm institution-specific policies before launch.
+
+
+[TABLE 2]
+
+Role | Allowed capabilities | Restrictions
+
+Public visitor | View home page, published events, game information, notices and contact information. | Cannot view private participant records or admin pages.
+
+Student / participant | Submit registrations; optionally check own registration using a secure method. | Can only access their own registration details; cannot change admin status.
+
+Volunteer / coordinator (optional) | View assigned event/game information and perform explicitly delegated tasks. | No global exports, user management or settings unless permission is granted.
+
+Event admin | Manage assigned events/games, review registrations, update statuses and export permitted data. | Cannot manage super admins or global security settings.
+
+Super admin | Full access to events, games, registrations, exports, admin accounts, settings and audit logs. | Account should be limited to trusted owners.
+
+
+[TABLE 3]
+
+Action | Public | Student | Event admin | Super admin
+
+View published events | Yes | Yes | Yes | Yes
+
+Submit registration | Yes, if enabled | Yes | Yes | Yes
+
+View all participants | No | No | Assigned events only | Yes
+
+Approve/reject registrations | No | No | Assigned events only | Yes
+
+Create/edit events | No | No | If permitted | Yes
+
+Create/edit games | No | No | If permitted | Yes
+
+Export participant data | No | Own data only, if enabled | Assigned events only | Yes
+
+Manage admin accounts | No | No | No | Yes
+
+Change global settings | No | No | No | Yes
+
+
+[TABLE 4]
+
+Page | Route | Required content and behaviour
+
+Home | / | Hero section, Sports Club introduction, featured/upcoming events, highlights, announcements, CTA to explore events.
+
+About | /about | Club overview, objectives, activities and verified college/club information.
+
+Events | /events | Published events with search, status filters and event cards.
+
+Event details | /events/:eventId | Event description, banner, dates, venue, event status and list of games.
+
+Game details | /events/:eventId/games/:gameId | Game rules, participation type, eligibility, capacity, deadlines and registration CTA.
+
+Registration | /register/:eventId/:gameId | Dynamic form based on event/game settings; validation and confirmation.
+
+Registration lookup | /my-registration | Secure way to check a registration using a private reference and verification method.
+
+Announcements | /announcements | Published notices and event updates.
+
+Contact | /contact | Official contact details supplied by the club; do not invent them.
+
+
+[TABLE 5]
+
+Page | Route | Required functionality
+
+Admin login | /admin/login | Secure sign-in, password reset, session handling and unauthorized access protection.
+
+Dashboard | /admin/dashboard | Summary cards, recent registrations, event status, pending approvals and quick actions.
+
+Events | /admin/events | List, search, filter, create, edit, publish, close, archive and delete/draft events.
+
+Event editor | /admin/events/new and /admin/events/:id/edit | Event details, dates, venue, banner, rules, registration settings and publication state.
+
+Games | /admin/events/:id/games | Add/edit/reorder/close games within an event.
+
+Game editor | /admin/events/:id/games/new | Participation type, capacity, rules, deadline and dynamic form builder.
+
+Participants | /admin/participants | Global registration table, search, filters, bulk selection and row actions.
+
+Registration details | /admin/registrations/:id | Full registration and team data, status history, admin notes and actions.
+
+Reports & exports | /admin/reports | Filter builder, selected/filtered export, counts and summary reports.
+
+Announcements | /admin/announcements | Create, schedule, publish and archive notices.
+
+Admin users | /admin/admins | Super-admin-only invitation, role, event assignment, activation and deactivation.
+
+Settings | /admin/settings | Club details, form defaults, privacy text, registration rules and site configuration.
+
+Audit log | /admin/audit-logs | Searchable record of sensitive admin actions.
+
+
+[TABLE 6]
+
+Status | Meaning | Public visibility
+
+Draft | Being prepared; not yet published. | Hidden from public.
+
+Published / Upcoming | Visible and scheduled; registration may not yet be open. | Visible.
+
+Registration Open | Students can register if eligible and before deadline. | Visible with registration CTA.
+
+Registration Closed | No new registrations accepted. | Visible with closed label.
+
+Ongoing | Event is in progress. | Visible.
+
+Completed | Event finished; results may be displayed if enabled. | Visible as completed.
+
+Archived | Retained for records, removed from normal active listings. | Hidden or in archive section.
+
+
+[TABLE 7]
+
+Field | Type | Rules
+
+eventId | System ID | Generated unique ID; never rely on event name as ID.
+
+eventName | Text | Required; e.g. UMANG'27.
+
+slug | Text | Unique URL-safe identifier.
+
+shortDescription | Text | Short card summary.
+
+description | Rich text/plain text | Full event details and instructions.
+
+bannerImagePath | Storage path | Optional image stored in Firebase Storage.
+
+startDate / endDate | Timestamp | Validate end date is not before start date.
+
+registrationStart / registrationEnd | Timestamp | Validate registration window.
+
+venue | Text | Optional until confirmed.
+
+status | Enum | Draft, published, registration_open, registration_closed, ongoing, completed, archived.
+
+featured | Boolean | Whether event is featured on home page.
+
+createdBy / updatedBy | UID | Admin identity for accountability.
+
+createdAt / updatedAt | Timestamp | Server timestamps.
+
+
+[TABLE 8]
+
+Participation type | Examples | Registration behaviour
+
+Individual | Chess, 100m race, long jump | One participant per registration.
+
+Doubles | Badminton doubles, table tennis doubles | Two linked participants per team/entry.
+
+Team | Cricket, Volleyball, Kabaddi, Football | One captain plus configurable team members.
+
+
+[TABLE 9]
+
+Field | Description
+
+gameId | Unique generated ID.
+
+eventId | Parent event reference.
+
+gameName | Game name, e.g. Cricket.
+
+category | Indoor, Outdoor or Other.
+
+participationType | Individual, Doubles or Team.
+
+description / rules | Game information and rules.
+
+maxParticipants | Optional capacity for individual entries.
+
+maxTeams | Optional team capacity.
+
+minTeamSize / maxTeamSize | Required for team games; validate member count.
+
+registrationDeadline | Optional game-specific closing time.
+
+registrationStatus | Draft, open, closed.
+
+eligibilityRules | Optional branch/year/gender or other eligibility rules.
+
+customFields | Admin-configured fields for this game.
+
+createdAt / updatedAt | Server timestamps.
+
+
+[TABLE 10]
+
+Field | Required? | Validation
+
+Full name | Yes | Trim whitespace; reasonable length; allow Indian names and Unicode.
+
+Registration/enrollment number | Yes | College-defined format; do not assume a pattern until confirmed.
+
+Branch | Yes | Admin-managed list; initial options: CSE (IoT), Civil, Electrical, Mechanical.
+
+Current year | Yes | Initial options: 1st, 2nd, 3rd, 4th year.
+
+Phone number | Yes | Validate appropriate phone format; store normalized value.
+
+Email | Configurable | Validate email; do not assume every student has an institutional email.
+
+Event ID and game ID | System | Set from selected event/game, not user-editable.
+
+Registration time | System | Server timestamp.
+
+Status | System | Initial value pending or auto-approved according to event settings.
+
+
+[TABLE 11]
+
+Status | Meaning
+
+Pending | Submitted and awaiting review.
+
+Approved | Accepted by an authorised admin.
+
+Rejected | Not accepted; optional reason can be recorded.
+
+Waitlisted | Kept on a waiting list if capacity is full.
+
+Withdrawn | Participant or authorised admin has withdrawn the entry.
+
+Cancelled | Registration cancelled by organiser.
+
+
+[TABLE 12]
+
+Progress field | Possible values
+
+selectionStatus | Not reviewed, shortlisted, selected, not selected.
+
+teamAssignment | Unassigned or assigned team/group name.
+
+matchStatus | Not scheduled, scheduled, in progress, completed, did not attend.
+
+result | No result, winner, runner-up, participant, disqualified (as applicable).
+
+
+[TABLE 13]
+
+Filter | Expected behaviour
+
+Search | Search name, enrollment number, phone, email, team name and registration reference.
+
+Event | Choose one event or all events.
+
+Game | Choose one game; game list should depend on selected event.
+
+Branch | Filter by configured branch.
+
+Year | Filter by 1st/2nd/3rd/4th year.
+
+Registration status | Pending, approved, rejected, waitlisted, withdrawn, cancelled.
+
+Progress | Shortlisted, selected, assigned, scheduled, completed, etc.
+
+Date range | Filter registration creation date.
+
+Participation type | Individual, doubles, team.
+
+Custom field | Allow selected custom fields to be filterable when suitable.
+
+
+[TABLE 14]
+
+Export option | Expected result
+
+All registrations | All records the admin is authorised to access.
+
+Selected event | Only registrations for that event.
+
+Selected game | Only registrations for that game.
+
+Filtered results | All records matching the active filter set, not just the visible page.
+
+Selected rows | Only manually selected registration IDs.
+
+Approved / Pending / Rejected | Only records with the selected registration status.
+
+Team report | Team details and members, either in separate sheets or a clearly structured export.
+
+
+[TABLE 15]
+
+Layer | Recommended technology | Reason
+
+Frontend | React + Vite + TypeScript | Component-based, maintainable and suitable for a responsive web application.
+
+UI styling | Tailwind CSS | Consistent responsive design and rapid implementation.
+
+Routing | React Router | Public and protected admin routes.
+
+Forms | React Hook Form + Zod | Form state and schema validation.
+
+Backend/Auth | Firebase Authentication | Secure admin sign-in and optional student authentication.
+
+Database | Cloud Firestore | Document database for events, games and registrations.
+
+File storage | Firebase Storage | Event posters, approved documents and other allowed uploads.
+
+Trusted backend | Cloud Functions for Firebase | Duplicate checks, privileged actions, export jobs, notifications and audit writes.
+
+Hosting | Firebase Hosting | HTTPS hosting and deployment.
+
+Excel export | SheetJS (xlsx) or ExcelJS | Generate .xlsx and CSV exports.
+
+
+[TABLE 16]
+
+Area | Rules to implement
+
+Event dates | End date must be on/after start date; registration close must not precede registration open.
+
+Registration window | Reject submissions before opening or after closing, using trusted server time.
+
+Capacity | Do not accept new entries when configured capacity is reached; handle simultaneous submissions safely.
+
+Team size | Enforce configured min/max team size.
+
+Duplicate registration | Enforce event/game duplicate rules on trusted backend.
+
+Required fields | Validate required common and custom fields on client and server.
+
+Branch/year | Use controlled options from settings; do not accept arbitrary values if fixed options are required.
+
+Status transitions | Only authorised roles can update statuses; validate allowed transitions.
+
+Admin scope | Event admins may act only on assigned events.
+
+File uploads | Validate type, size and access; use Storage Rules and safe filenames.
+
+Exports | Apply same permission scope and active filters to every exported row.
+
+
+[TABLE 17]
+
+Phase | Work | Deliverable / acceptance
+
+1. Discovery | Confirm official branding, fields, event policies, admin roles and privacy requirements. | Approved requirements and content checklist.
+
+2. UX/UI | Design public pages, admin layout, mobile views, forms and tables. | Responsive design system and page mockups.
+
+3. Foundation | Set up React/Vite/TypeScript, routing, Firebase and environment configuration. | Running app connected to development Firebase.
+
+4. Security | Implement Authentication, admin roles, Firestore/Storage Rules and audit foundations. | Role-based access tested in Firebase Emulator Suite.
+
+5. Events & games | Build event CRUD, game CRUD and dynamic form builder. | Admin can create an event with multiple configurable games.
+
+6. Registration | Build individual/doubles/team forms, validation and duplicate protection. | Students can register and receive a reference.
+
+7. Participants | Build participant table, filters, detail view, status history and bulk actions. | Admin can manage game-wise participant records.
+
+8. Reports | Build filtered Excel/CSV export and summary sheets. | Exports match selected/filtered records and permissions.
+
+9. Public content | Build announcements, contact and public event pages. | Complete public-facing website.
+
+10. QA & launch | Run functional/security/mobile tests, fix defects and deploy. | Production-ready site, admin guide and handover.
+
+
+[TABLE 18]
+
+Decision | Recommended starting point | Owner confirmation needed
+
+Student login | Public registration without account, with secure registration reference; optionally add student login later. | Yes
+
+Admin accounts | Multiple admins with role-based permissions; one or more super admins. | Yes
+
+Registration modes | Support individual, doubles and team games. | No — build all three.
+
+Approval | Manual approval by default; allow event-specific auto-approval if desired. | Yes
+
+Custom fields | Admin can add game-specific fields. | No — include this feature.
+
+Branch options | CSE (IoT), Civil, Electrical, Mechanical. | Confirm official current branch names.
+
+Year options | 1st, 2nd, 3rd, 4th year. | Confirm if needed.
+
+Notifications | In-app confirmation first; email as optional integration. | Yes
+
+Public results | Off by default; admin can publish selected results later. | Yes
+
+Domain and ownership | College/club-controlled account and approved domain. | Yes
+
+Privacy/retention | Collect minimum data and follow college-approved retention policy. | Yes

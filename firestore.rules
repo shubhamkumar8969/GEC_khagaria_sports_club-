@@ -1,0 +1,1400 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Connection check endpoint (non-existent doc read for offline detection)
+    match /test/{docId} {
+      allow get: if docId == 'connection';
+    }
+
+    // -------------------------------------------------------------------------
+    // Core Primitives & Identity Helpers
+    // -------------------------------------------------------------------------
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedEmail() {
+      return isSignedIn()
+        && request.auth.token.email != null
+        && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string
+        && id.size() >= 1
+        && id.size() <= 128
+        && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidSha256Id(id) {
+      return id is string
+        && id.size() == 64
+        && id.matches('^[a-f0-9]{64}$');
+    }
+
+    function isBootstrappedSuperAdminEmail() {
+      return isVerifiedEmail()
+        && request.auth.token.email.lower() == 'shubhamchaurasiya29129@gmail.com';
+    }
+
+    function adminDocExists() {
+      return isVerifiedEmail()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function adminData() {
+      return get(/databases/$(database)/documents/admins/$(request.auth.uid)).data;
+    }
+
+    function isActiveAdmin() {
+      return isBootstrappedSuperAdminEmail()
+        || (adminDocExists() && adminData().active == true);
+    }
+
+    function isSuperAdmin() {
+      return isBootstrappedSuperAdminEmail()
+        || (adminDocExists() && adminData().active == true && adminData().role == 'super_admin');
+    }
+
+    function isAdminManager() {
+      return isSuperAdmin()
+        || (adminDocExists() && adminData().active == true && adminData().role == 'event_admin');
+    }
+
+    function isBlockedStudent() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/studentAccounts/$(request.auth.uid))
+        && get(/databases/$(database)/documents/studentAccounts/$(request.auth.uid)).data.status == 'blocked';
+    }
+
+    function isEventAdminFor(eventId) {
+      return isSuperAdmin()
+        || (
+          adminDocExists()
+          && adminData().active == true
+          && adminData().role == 'event_admin'
+          && eventId in adminData().assignedEventIds
+        );
+    }
+
+    function isCoordinatorOrAboveFor(eventId) {
+      return isSuperAdmin()
+        || (
+          adminDocExists()
+          && adminData().active == true
+          && adminData().role in ['event_admin', 'coordinator']
+          && eventId in adminData().assignedEventIds
+        );
+    }
+
+    function isPublicEventData(data) {
+      return data.status in ['published', 'registration_open', 'registration_closed', 'ongoing', 'completed'];
+    }
+
+    function parentEventData(eventId) {
+      return get(/databases/$(database)/documents/events/$(eventId)).data;
+    }
+
+    function parentEventExists(eventId) {
+      return exists(/databases/$(database)/documents/events/$(eventId));
+    }
+
+    function parentGameData(eventId, gameId) {
+      return get(/databases/$(database)/documents/events/$(eventId)/games/$(gameId)).data;
+    }
+
+    function parentGameExists(eventId, gameId) {
+      return exists(/databases/$(database)/documents/events/$(eventId)/games/$(gameId));
+    }
+
+    // -------------------------------------------------------------------------
+    // Entity Validation Blueprints
+    // -------------------------------------------------------------------------
+    function isValidAdminUser(data, uid) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'email', 'role', 'active',
+          'assignedEventIds', 'permissions', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'displayName', 'email', 'role', 'active',
+          'assignedEventIds', 'permissions', 'inviteId', 'createdAt', 'updatedAt'
+        ])
+        && data.uid is string && data.uid == uid && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.email is string && data.email.size() >= 5 && data.email.size() <= 200
+        && data.role in ['super_admin', 'event_admin', 'coordinator']
+        && data.active is bool
+        && data.assignedEventIds is list && data.assignedEventIds.size() <= 50
+        && (data.assignedEventIds.size() == 0 || data.assignedEventIds[0] is string)
+        && data.permissions is list && data.permissions.size() <= 30
+        && (data.permissions.size() == 0 || data.permissions[0] is string)
+        && (!('inviteId' in data) || (data.inviteId is string && data.inviteId.size() <= 128))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdminInvite(data) {
+      return data.keys().hasAll([
+          'email', 'displayName', 'role', 'active',
+          'assignedEventIds', 'permissions', 'invitedBy', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'email', 'displayName', 'role', 'active',
+          'assignedEventIds', 'permissions', 'invitedBy', 'createdAt', 'updatedAt'
+        ])
+        && data.email is string && data.email.size() >= 5 && data.email.size() <= 200
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.role in ['super_admin', 'event_admin', 'coordinator']
+        && data.active is bool
+        && data.assignedEventIds is list && data.assignedEventIds.size() <= 50
+        && (data.assignedEventIds.size() == 0 || data.assignedEventIds[0] is string)
+        && data.permissions is list && data.permissions.size() <= 30
+        && (data.permissions.size() == 0 || data.permissions[0] is string)
+        && data.invitedBy is string && data.invitedBy.size() >= 1 && data.invitedBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStudentAccount(data, uid) {
+      return data.keys().hasAll([
+          'uid', 'email', 'displayName', 'photoUrl', 'profileCompleted',
+          'fullName', 'registrationNumber', 'branch', 'year', 'phone',
+          'status', 'blockedReason', 'blockedBy', 'blockedByName',
+          'loginCount', 'lastLoginAt', 'lastActiveAt', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'email', 'displayName', 'photoUrl', 'profileCompleted',
+          'fullName', 'registrationNumber', 'branch', 'year', 'semester', 'phone',
+          'status', 'blockedReason', 'blockedBy', 'blockedByName', 'blockedAt',
+          'loginCount', 'lastLoginAt', 'lastActiveAt', 'createdAt', 'updatedAt'
+        ])
+        && data.uid is string && data.uid == uid && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 5 && data.email.size() <= 200
+        && data.displayName is string && data.displayName.size() <= 120
+        && data.photoUrl is string && data.photoUrl.size() <= 1000
+        && data.profileCompleted is bool
+        && data.fullName is string && data.fullName.size() <= 120
+        && data.registrationNumber is string && data.registrationNumber.size() <= 40
+        && data.branch is string && data.branch.size() <= 80
+        && data.year is string && data.year.size() <= 30
+        && (!('semester' in data) || (data.semester is string && data.semester.size() <= 30))
+        && data.phone is string && data.phone.size() <= 20
+        && data.status in ['active', 'blocked']
+        && data.blockedReason is string && data.blockedReason.size() <= 500
+        && data.blockedBy is string && data.blockedBy.size() <= 128
+        && data.blockedByName is string && data.blockedByName.size() <= 120
+        && (!('blockedAt' in data) || data.blockedAt == null || data.blockedAt is timestamp)
+        && data.loginCount is int && data.loginCount >= 1 && data.loginCount <= 1000000
+        && data.lastLoginAt is timestamp
+        && data.lastActiveAt is timestamp
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStudentActivity(data) {
+      return data.keys().hasAll([
+          'uid', 'email', 'studentName', 'registrationNumber',
+          'action', 'summary', 'path', 'eventId', 'gameId', 'metadata', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'email', 'studentName', 'registrationNumber',
+          'action', 'summary', 'path', 'eventId', 'gameId', 'metadata', 'createdAt'
+        ])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && data.studentName is string && data.studentName.size() <= 120
+        && data.registrationNumber is string && data.registrationNumber.size() <= 40
+        && data.action in [
+          'login', 'logout', 'profile_saved', 'page_view',
+          'registration_submitted', 'registration_failed',
+          'certificate_preview', 'certificate_download',
+          'blocked_access_attempt', 'admin_block', 'admin_unblock', 'admin_remove'
+        ]
+        && data.summary is string && data.summary.size() >= 2 && data.summary.size() <= 500
+        && data.path is string && data.path.size() <= 300
+        && data.eventId is string && data.eventId.size() <= 128
+        && data.gameId is string && data.gameId.size() <= 128
+        && data.metadata is map && data.metadata.keys().size() <= 15
+        && data.createdAt is timestamp;
+    }
+
+    function isValidStudentProfile(data, uid) {
+      return data.keys().hasAll([
+          'uid', 'fullName', 'registrationNumber', 'regNoHash',
+          'branch', 'year', 'phone', 'email', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'fullName', 'registrationNumber', 'regNoHash',
+          'branch', 'batch', 'year', 'semester', 'phone', 'email', 'createdAt', 'updatedAt'
+        ])
+        && data.uid is string && data.uid == uid && isValidId(data.uid)
+        && data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 120
+        && data.registrationNumber is string && data.registrationNumber.size() >= 2 && data.registrationNumber.size() <= 40
+        && isValidSha256Id(data.regNoHash)
+        && data.branch is string && data.branch.size() >= 1 && data.branch.size() <= 80
+        && (!('batch' in data) || (data.batch is string && data.batch.size() <= 40))
+        && data.year is string && data.year.size() >= 1 && data.year.size() <= 30
+        && (!('semester' in data) || (data.semester is string && data.semester.size() <= 30))
+        && data.phone is string && data.phone.size() <= 20
+        && data.email is string && data.email.size() >= 5 && data.email.size() <= 200
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidEnrollmentLock(data, regNoHash) {
+      return data.keys().hasAll(['regNoHash', 'uid', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['regNoHash', 'uid', 'createdAt', 'updatedAt'])
+        && isValidSha256Id(data.regNoHash) && data.regNoHash == regNoHash
+        && isValidId(data.uid)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSportEvent(data) {
+      return data.keys().hasAll([
+          'name', 'slug', 'shortDescription', 'description', 'bannerUrl', 'venue',
+          'startAt', 'endAt', 'registrationStartAt', 'registrationEndAt',
+          'status', 'featured', 'autoApprove', 'showPublicResults',
+          'createdBy', 'updatedBy', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'name', 'slug', 'shortDescription', 'description', 'highlightsText', 'bannerUrl', 'venue',
+          'startAt', 'endAt', 'registrationStartAt', 'registrationEndAt',
+          'status', 'featured', 'autoApprove', 'showPublicResults',
+          'createdBy', 'updatedBy', 'createdAt', 'updatedAt'
+        ])
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 140
+        && data.slug is string && data.slug.size() >= 2 && data.slug.size() <= 140 && data.slug.matches('^[a-z0-9-]+$')
+        && data.shortDescription is string && data.shortDescription.size() >= 2 && data.shortDescription.size() <= 300
+        && data.description is string && data.description.size() <= 5000
+        && (!('highlightsText' in data) || (data.highlightsText is string && data.highlightsText.size() <= 4000))
+        && data.bannerUrl is string && data.bannerUrl.size() <= 450000
+        && data.venue is string && data.venue.size() <= 200
+        && data.startAt is timestamp
+        && data.endAt is timestamp && data.endAt >= data.startAt
+        && data.registrationStartAt is timestamp
+        && data.registrationEndAt is timestamp && data.registrationEndAt >= data.registrationStartAt
+        && data.status in ['draft', 'published', 'registration_open', 'registration_closed', 'ongoing', 'completed', 'archived']
+        && data.featured is bool
+        && data.autoApprove is bool
+        && data.showPublicResults is bool
+        && data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128
+        && data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidEventGame(data, parentEventId) {
+      return data.keys().hasAll([
+          'eventId', 'name', 'category', 'participationType', 'description', 'rules',
+          'maxParticipants', 'maxTeams', 'minTeamSize', 'maxTeamSize',
+          'registrationDeadline', 'registrationStatus', 'eligibility', 'sortOrder',
+          'customFields', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'eventId', 'name', 'category', 'participationType', 'description', 'rules',
+          'maxParticipants', 'maxTeams', 'minTeamSize', 'maxTeamSize',
+          'registrationDeadline', 'registrationStatus', 'eligibility', 'sortOrder',
+          'customFields', 'createdAt', 'updatedAt'
+        ])
+        && data.eventId is string && data.eventId == parentEventId && isValidId(data.eventId)
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 120
+        && data.category in ['Indoor', 'Outdoor', 'Athletics', 'Esports', 'Other']
+        && data.participationType in ['individual', 'doubles', 'team']
+        && data.description is string && data.description.size() <= 3000
+        && data.rules is string && data.rules.size() <= 5000
+        && data.maxParticipants is int && data.maxParticipants >= 0 && data.maxParticipants <= 10000
+        && data.maxTeams is int && data.maxTeams >= 0 && data.maxTeams <= 5000
+        && data.minTeamSize is int && data.minTeamSize >= 1 && data.minTeamSize <= 30
+        && data.maxTeamSize is int && data.maxTeamSize >= data.minTeamSize && data.maxTeamSize <= 30
+        && data.registrationDeadline is timestamp
+        && data.registrationStatus in ['draft', 'open', 'closed']
+        && data.eligibility is string && data.eligibility.size() <= 500
+        && data.sortOrder is int && data.sortOrder >= 0 && data.sortOrder <= 1000
+        && data.customFields is list && data.customFields.size() <= 25
+        && (data.customFields.size() == 0 || data.customFields[0] is map)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidEventPhoto(data) {
+      return data.keys().hasAll([
+          'eventId', 'eventName', 'title', 'caption', 'imageUrl',
+          'published', 'uploadedBy', 'uploadedByName', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'eventId', 'eventName', 'title', 'caption', 'imageUrl',
+          'published', 'uploadedBy', 'uploadedByName', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.eventId)
+        && data.eventName is string && data.eventName.size() >= 1 && data.eventName.size() <= 140
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 160
+        && data.caption is string && data.caption.size() <= 500
+        && data.imageUrl is string && data.imageUrl.size() >= 5 && data.imageUrl.size() <= 450000
+        && data.published is bool
+        && data.uploadedBy is string && data.uploadedBy.size() >= 1 && data.uploadedBy.size() <= 128
+        && data.uploadedByName is string && data.uploadedByName.size() >= 1 && data.uploadedByName.size() <= 120
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidIssuedCertificate(data) {
+      return data.keys().hasAll([
+          'eventId', 'eventName', 'gameId', 'gameName', 'studentUid', 'registrationId',
+          'regNoHash', 'studentName', 'registrationNumber', 'branch', 'batch', 'year',
+          'teamName', 'certificateType', 'placement', 'certificateTitle', 'certificateNote',
+          'customImageUrl', 'issuedBy', 'issuedByName', 'issuedAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'eventId', 'eventName', 'gameId', 'gameName', 'studentUid', 'registrationId',
+          'regNoHash', 'studentName', 'registrationNumber', 'branch', 'batch', 'year',
+          'teamName', 'certificateType', 'placement', 'certificateTitle', 'certificateNote',
+          'customImageUrl', 'issuedBy', 'issuedByName', 'issuedAt', 'updatedAt'
+        ])
+        && isValidId(data.eventId)
+        && data.eventName is string && data.eventName.size() >= 1 && data.eventName.size() <= 140
+        && data.gameId is string && data.gameId.size() <= 128
+        && data.gameName is string && data.gameName.size() >= 1 && data.gameName.size() <= 120
+        && data.studentUid is string && data.studentUid.size() <= 128
+        && data.registrationId is string && data.registrationId.size() <= 128
+        && isValidSha256Id(data.regNoHash)
+        && data.studentName is string && data.studentName.size() >= 2 && data.studentName.size() <= 120
+        && data.registrationNumber is string && data.registrationNumber.size() >= 2 && data.registrationNumber.size() <= 40
+        && data.branch is string && data.branch.size() >= 1 && data.branch.size() <= 80
+        && data.batch is string && data.batch.size() <= 40
+        && data.year is string && data.year.size() >= 1 && data.year.size() <= 30
+        && data.teamName is string && data.teamName.size() <= 120
+        && data.certificateType in ['winner', 'selected', 'participation']
+        && data.placement in ['winner', 'runner_up', 'third_place', 'selected', 'participant']
+        && data.certificateTitle is string && data.certificateTitle.size() >= 2 && data.certificateTitle.size() <= 160
+        && data.certificateNote is string && data.certificateNote.size() <= 400
+        && data.customImageUrl is string && data.customImageUrl.size() <= 450000
+        && data.issuedBy is string && data.issuedBy.size() >= 1 && data.issuedBy.size() <= 128
+        && data.issuedByName is string && data.issuedByName.size() >= 1 && data.issuedByName.size() <= 120
+        && data.issuedAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCertificateIndexEntry(data, regNoHash, certId) {
+      return data.keys().hasAll([
+          'certId', 'regNoHash', 'eventId', 'eventName', 'gameId', 'gameName',
+          'studentName', 'registrationNumber', 'branch', 'batch', 'year', 'teamName',
+          'certificateType', 'placement', 'certificateTitle', 'certificateNote',
+          'customImageUrl', 'issuedAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'certId', 'regNoHash', 'eventId', 'eventName', 'gameId', 'gameName',
+          'studentName', 'registrationNumber', 'branch', 'batch', 'year', 'teamName',
+          'certificateType', 'placement', 'certificateTitle', 'certificateNote',
+          'customImageUrl', 'issuedAt', 'updatedAt'
+        ])
+        && isValidId(data.certId) && data.certId == certId
+        && isValidSha256Id(data.regNoHash) && data.regNoHash == regNoHash
+        && isValidId(data.eventId)
+        && data.eventName is string && data.eventName.size() >= 1 && data.eventName.size() <= 140
+        && data.gameId is string && data.gameId.size() <= 128
+        && data.gameName is string && data.gameName.size() >= 1 && data.gameName.size() <= 120
+        && data.studentName is string && data.studentName.size() >= 2 && data.studentName.size() <= 120
+        && data.registrationNumber is string && data.registrationNumber.size() >= 2 && data.registrationNumber.size() <= 40
+        && data.branch is string && data.branch.size() >= 1 && data.branch.size() <= 80
+        && data.batch is string && data.batch.size() <= 40
+        && data.year is string && data.year.size() >= 1 && data.year.size() <= 30
+        && data.teamName is string && data.teamName.size() <= 120
+        && data.certificateType in ['winner', 'selected', 'participation']
+        && data.placement in ['winner', 'runner_up', 'third_place', 'selected', 'participant']
+        && data.certificateTitle is string && data.certificateTitle.size() >= 2 && data.certificateTitle.size() <= 160
+        && data.certificateNote is string && data.certificateNote.size() <= 400
+        && data.customImageUrl is string && data.customImageUrl.size() <= 450000
+        && data.issuedAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidParticipantMap(p) {
+      return p is map
+        && p.keys().hasAll(['fullName', 'enrollmentNumber', 'branch', 'year', 'phone', 'email'])
+        && p.keys().hasOnly(['fullName', 'enrollmentNumber', 'branch', 'batch', 'year', 'semester', 'phone', 'email'])
+        && p.fullName is string && p.fullName.size() >= 2 && p.fullName.size() <= 120
+        && p.enrollmentNumber is string && p.enrollmentNumber.size() >= 2 && p.enrollmentNumber.size() <= 40
+        && p.branch is string && p.branch.size() >= 1 && p.branch.size() <= 80
+        && (!('batch' in p) || (p.batch is string && p.batch.size() <= 40))
+        && p.year is string && p.year.size() >= 1 && p.year.size() <= 30
+        && (!('semester' in p) || (p.semester is string && p.semester.size() <= 30))
+        && p.phone is string && p.phone.size() >= 7 && p.phone.size() <= 20
+        && p.email is string && p.email.size() <= 200;
+    }
+
+    function isValidTeamMap(t) {
+      return t is map
+        && t.keys().hasAll(['teamName', 'captainName', 'captainEnrollment', 'members'])
+        && t.keys().hasOnly(['teamName', 'captainName', 'captainEnrollment', 'members'])
+        && t.teamName is string && t.teamName.size() <= 120
+        && t.captainName is string && t.captainName.size() <= 120
+        && t.captainEnrollment is string && t.captainEnrollment.size() <= 40
+        && t.members is list && t.members.size() <= 30
+        && (t.members.size() == 0 || t.members[0] is map);
+    }
+
+    function isValidRegistration(data) {
+      return data.keys().hasAll([
+          'eventId', 'eventName', 'gameId', 'gameName', 'participationType',
+          'registrationReference', 'lookupKey', 'participant', 'team', 'customAnswers',
+          'registrationStatus', 'selectionStatus', 'teamAssignment', 'matchStatus', 'result',
+          'adminNotes', 'declarationAccepted', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'eventId', 'eventName', 'gameId', 'gameName', 'participationType',
+          'registrationReference', 'lookupKey', 'studentPortalKey', 'studentUid',
+          'participant', 'team', 'customAnswers',
+          'registrationStatus', 'selectionStatus', 'teamAssignment', 'matchStatus', 'result',
+          'certificateIssued', 'certificateId', 'certificateTitle', 'certificateNote', 'certificateIssuedAt',
+          'adminNotes', 'declarationAccepted', 'createdAt', 'updatedAt'
+        ])
+        && data.eventId is string && isValidId(data.eventId)
+        && data.eventName is string && data.eventName.size() >= 1 && data.eventName.size() <= 140
+        && data.gameId is string && isValidId(data.gameId)
+        && data.gameName is string && data.gameName.size() >= 1 && data.gameName.size() <= 120
+        && data.participationType in ['individual', 'doubles', 'team']
+        && data.registrationReference is string && data.registrationReference.size() >= 6 && data.registrationReference.size() <= 40 && data.registrationReference.matches('^[A-Z0-9-]+$')
+        && isValidSha256Id(data.lookupKey)
+        && (!('studentPortalKey' in data) || isValidSha256Id(data.studentPortalKey))
+        && (!('studentUid' in data) || (data.studentUid is string && data.studentUid.size() <= 128))
+        && isValidParticipantMap(data.participant)
+        && isValidTeamMap(data.team)
+        && data.customAnswers is map && data.customAnswers.keys().size() <= 30
+        && data.registrationStatus in ['pending', 'approved', 'rejected', 'waitlisted', 'withdrawn', 'cancelled']
+        && data.selectionStatus in ['not_reviewed', 'shortlisted', 'selected', 'not_selected']
+        && data.teamAssignment is string && data.teamAssignment.size() <= 100
+        && data.matchStatus in ['not_scheduled', 'scheduled', 'in_progress', 'completed', 'did_not_attend']
+        && data.result in ['no_result', 'winner', 'runner_up', 'participant', 'disqualified']
+        && (!('certificateIssued' in data) || data.certificateIssued is bool)
+        && (!('certificateId' in data) || (data.certificateId is string && data.certificateId.size() <= 60))
+        && (!('certificateTitle' in data) || (data.certificateTitle is string && data.certificateTitle.size() <= 160))
+        && (!('certificateNote' in data) || (data.certificateNote is string && data.certificateNote.size() <= 300))
+        && (!('certificateIssuedAt' in data) || data.certificateIssuedAt == null || data.certificateIssuedAt is timestamp)
+        && data.adminNotes is string && data.adminNotes.size() <= 2000
+        && data.declarationAccepted is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRegistrationLookup(data) {
+      return data.keys().hasAll([
+          'registrationId', 'registrationReference', 'eventId', 'eventName',
+          'gameId', 'gameName', 'participantName', 'enrollmentNumber',
+          'branch', 'year', 'teamName', 'participationType',
+          'registrationStatus', 'selectionStatus', 'teamAssignment', 'matchStatus', 'result',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'registrationId', 'registrationReference', 'eventId', 'eventName',
+          'gameId', 'gameName', 'participantName', 'enrollmentNumber',
+          'branch', 'batch', 'year', 'semester', 'teamName', 'participationType',
+          'registrationStatus', 'selectionStatus', 'teamAssignment', 'matchStatus', 'result',
+          'certificateIssued', 'certificateId', 'certificateTitle', 'certificateNote', 'certificateIssuedAt',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.registrationId)
+        && data.registrationReference is string && data.registrationReference.size() >= 6 && data.registrationReference.size() <= 40
+        && isValidId(data.eventId)
+        && data.eventName is string && data.eventName.size() >= 1 && data.eventName.size() <= 140
+        && isValidId(data.gameId)
+        && data.gameName is string && data.gameName.size() >= 1 && data.gameName.size() <= 120
+        && data.participantName is string && data.participantName.size() >= 2 && data.participantName.size() <= 120
+        && data.enrollmentNumber is string && data.enrollmentNumber.size() >= 2 && data.enrollmentNumber.size() <= 40
+        && data.branch is string && data.branch.size() >= 1 && data.branch.size() <= 80
+        && (!('batch' in data) || (data.batch is string && data.batch.size() <= 40))
+        && data.year is string && data.year.size() >= 1 && data.year.size() <= 30
+        && (!('semester' in data) || (data.semester is string && data.semester.size() <= 30))
+        && data.teamName is string && data.teamName.size() <= 120
+        && data.participationType in ['individual', 'doubles', 'team']
+        && data.registrationStatus in ['pending', 'approved', 'rejected', 'waitlisted', 'withdrawn', 'cancelled']
+        && data.selectionStatus in ['not_reviewed', 'shortlisted', 'selected', 'not_selected']
+        && data.teamAssignment is string && data.teamAssignment.size() <= 100
+        && data.matchStatus in ['not_scheduled', 'scheduled', 'in_progress', 'completed', 'did_not_attend']
+        && data.result in ['no_result', 'winner', 'runner_up', 'participant', 'disqualified']
+        && (!('certificateIssued' in data) || data.certificateIssued is bool)
+        && (!('certificateId' in data) || (data.certificateId is string && data.certificateId.size() <= 60))
+        && (!('certificateTitle' in data) || (data.certificateTitle is string && data.certificateTitle.size() <= 160))
+        && (!('certificateNote' in data) || (data.certificateNote is string && data.certificateNote.size() <= 300))
+        && (!('certificateIssuedAt' in data) || data.certificateIssuedAt == null || data.certificateIssuedAt is timestamp)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStudentPortalEntry(data, portalKey, registrationId) {
+      return data.keys().hasAll([
+          'portalKey', 'registrationId', 'registrationReference', 'eventId', 'eventName',
+          'gameId', 'gameName', 'participantName', 'enrollmentNumber',
+          'branch', 'year', 'teamName', 'participationType',
+          'registrationStatus', 'selectionStatus', 'teamAssignment', 'matchStatus', 'result',
+          'certificateIssued', 'certificateId', 'certificateTitle', 'certificateNote',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'portalKey', 'registrationId', 'registrationReference', 'eventId', 'eventName',
+          'gameId', 'gameName', 'participantName', 'enrollmentNumber',
+          'branch', 'batch', 'year', 'semester', 'teamName', 'participationType',
+          'registrationStatus', 'selectionStatus', 'teamAssignment', 'matchStatus', 'result',
+          'certificateIssued', 'certificateId', 'certificateTitle', 'certificateNote', 'certificateIssuedAt',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidSha256Id(data.portalKey) && data.portalKey == portalKey
+        && isValidId(data.registrationId) && data.registrationId == registrationId
+        && data.registrationReference is string && data.registrationReference.size() >= 6 && data.registrationReference.size() <= 40
+        && isValidId(data.eventId)
+        && data.eventName is string && data.eventName.size() >= 1 && data.eventName.size() <= 140
+        && isValidId(data.gameId)
+        && data.gameName is string && data.gameName.size() >= 1 && data.gameName.size() <= 120
+        && data.participantName is string && data.participantName.size() >= 2 && data.participantName.size() <= 120
+        && data.enrollmentNumber is string && data.enrollmentNumber.size() >= 2 && data.enrollmentNumber.size() <= 40
+        && data.branch is string && data.branch.size() >= 1 && data.branch.size() <= 80
+        && (!('batch' in data) || (data.batch is string && data.batch.size() <= 40))
+        && data.year is string && data.year.size() >= 1 && data.year.size() <= 30
+        && (!('semester' in data) || (data.semester is string && data.semester.size() <= 30))
+        && data.teamName is string && data.teamName.size() <= 120
+        && data.participationType in ['individual', 'doubles', 'team']
+        && data.registrationStatus in ['pending', 'approved', 'rejected', 'waitlisted', 'withdrawn', 'cancelled']
+        && data.selectionStatus in ['not_reviewed', 'shortlisted', 'selected', 'not_selected']
+        && data.teamAssignment is string && data.teamAssignment.size() <= 100
+        && data.matchStatus in ['not_scheduled', 'scheduled', 'in_progress', 'completed', 'did_not_attend']
+        && data.result in ['no_result', 'winner', 'runner_up', 'participant', 'disqualified']
+        && data.certificateIssued is bool
+        && data.certificateId is string && data.certificateId.size() <= 60
+        && data.certificateTitle is string && data.certificateTitle.size() <= 160
+        && data.certificateNote is string && data.certificateNote.size() <= 300
+        && (!('certificateIssuedAt' in data) || data.certificateIssuedAt == null || data.certificateIssuedAt is timestamp)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPublishedResult(data) {
+      return data.keys().hasAll([
+          'eventId', 'eventName', 'gameId', 'gameName', 'category', 'participationType',
+          'winnerDisplayName', 'branch', 'year', 'placement', 'scoreOrRemark',
+          'registrationId', 'published', 'createdBy', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'eventId', 'eventName', 'gameId', 'gameName', 'category', 'participationType',
+          'winnerDisplayName', 'branch', 'year', 'placement', 'scoreOrRemark',
+          'registrationId', 'published', 'createdBy', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.eventId)
+        && data.eventName is string && data.eventName.size() >= 1 && data.eventName.size() <= 140
+        && isValidId(data.gameId)
+        && data.gameName is string && data.gameName.size() >= 1 && data.gameName.size() <= 120
+        && data.category in ['Indoor', 'Outdoor', 'Athletics', 'Esports', 'Other']
+        && data.participationType in ['individual', 'doubles', 'team']
+        && data.winnerDisplayName is string && data.winnerDisplayName.size() >= 2 && data.winnerDisplayName.size() <= 140
+        && data.branch is string && data.branch.size() >= 1 && data.branch.size() <= 80
+        && data.year is string && data.year.size() >= 1 && data.year.size() <= 30
+        && data.placement in ['winner', 'runner_up', 'third_place', 'finalist', 'participant']
+        && data.scoreOrRemark is string && data.scoreOrRemark.size() <= 300
+        && data.registrationId is string && data.registrationId.size() <= 128
+        && data.published is bool
+        && data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRegistrationLock(data) {
+      return data.keys().hasAll(['eventId', 'gameId', 'registrationId', 'createdAt'])
+        && data.keys().hasOnly(['eventId', 'gameId', 'registrationId', 'createdAt'])
+        && isValidId(data.eventId)
+        && isValidId(data.gameId)
+        && isValidId(data.registrationId)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidGameCounter(data) {
+      return data.keys().hasAll(['eventId', 'gameId', 'count', 'lastRegistrationId', 'updatedAt'])
+        && data.keys().hasOnly(['eventId', 'gameId', 'count', 'lastRegistrationId', 'updatedAt'])
+        && isValidId(data.eventId)
+        && isValidId(data.gameId)
+        && data.count is int && data.count >= 0 && data.count <= 100000
+        && isValidId(data.lastRegistrationId)
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStatusHistory(data) {
+      return data.keys().hasAll(['field', 'oldValue', 'newValue', 'changedBy', 'changedByName', 'reason', 'changedAt'])
+        && data.keys().hasOnly(['field', 'oldValue', 'newValue', 'changedBy', 'changedByName', 'reason', 'changedAt'])
+        && data.field is string && data.field.size() >= 1 && data.field.size() <= 60
+        && data.oldValue is string && data.oldValue.size() <= 200
+        && data.newValue is string && data.newValue.size() <= 200
+        && data.changedBy is string && data.changedBy.size() >= 1 && data.changedBy.size() <= 128
+        && data.changedByName is string && data.changedByName.size() >= 1 && data.changedByName.size() <= 120
+        && data.reason is string && data.reason.size() <= 500
+        && data.changedAt is timestamp;
+    }
+
+    function isValidAnnouncement(data) {
+      return data.keys().hasAll(['title', 'body', 'category', 'eventId', 'status', 'publishAt', 'createdBy', 'createdByName', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'body', 'category', 'eventId', 'imageUrl', 'status', 'publishAt', 'createdBy', 'createdByName', 'createdAt', 'updatedAt'])
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 200
+        && data.body is string && data.body.size() >= 2 && data.body.size() <= 5000
+        && data.category in ['General', 'Event Update', 'Schedule', 'Result', 'Urgent']
+        && data.eventId is string && data.eventId.size() <= 128
+        && (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 450000))
+        && data.status in ['draft', 'published', 'archived']
+        && data.publishAt is timestamp
+        && data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128
+        && data.createdByName is string && data.createdByName.size() >= 1 && data.createdByName.size() <= 120
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['actorUid', 'actorEmail', 'actorName', 'action', 'entityType', 'entityId', 'summary', 'metadata', 'createdAt'])
+        && data.keys().hasOnly(['actorUid', 'actorEmail', 'actorName', 'action', 'entityType', 'entityId', 'summary', 'metadata', 'createdAt'])
+        && data.actorUid is string && data.actorUid == request.auth.uid && data.actorUid.size() <= 128
+        && data.actorEmail is string && data.actorEmail.size() >= 3 && data.actorEmail.size() <= 200
+        && data.actorName is string && data.actorName.size() >= 1 && data.actorName.size() <= 120
+        && data.action is string && data.action.size() >= 2 && data.action.size() <= 100
+        && data.entityType is string && data.entityType.size() >= 2 && data.entityType.size() <= 60
+        && data.entityId is string && data.entityId.size() >= 1 && data.entityId.size() <= 128
+        && data.summary is string && data.summary.size() >= 2 && data.summary.size() <= 500
+        && data.metadata is map && data.metadata.keys().size() <= 20
+        && data.createdAt is timestamp;
+    }
+
+    function isValidSectionVisibilityMap(v) {
+      return v is map
+        && v.keys().hasOnly([
+          'showHero3D', 'showMetrics', 'showEvents', 'showResults',
+          'showHighlights', 'showAnnouncements', 'showPhotoGallery', 'showPortalCta'
+        ])
+        && (!('showHero3D' in v) || v.showHero3D is bool)
+        && (!('showMetrics' in v) || v.showMetrics is bool)
+        && (!('showEvents' in v) || v.showEvents is bool)
+        && (!('showResults' in v) || v.showResults is bool)
+        && (!('showHighlights' in v) || v.showHighlights is bool)
+        && (!('showAnnouncements' in v) || v.showAnnouncements is bool)
+        && (!('showPhotoGallery' in v) || v.showPhotoGallery is bool)
+        && (!('showPortalCta' in v) || v.showPortalCta is bool);
+    }
+
+    function isValidSiteSettings(data) {
+      return data.keys().hasAll([
+          'clubName', 'institutionName', 'tagline', 'contactEmail', 'contactPhone',
+          'campusAddress', 'facultyCoordinator', 'studentCoordinator',
+          'branches', 'years', 'privacyText', 'showPublicResults', 'updatedBy', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'clubName', 'institutionName', 'tagline',
+          'heroEyebrow', 'heroTitle', 'heroSubtitle', 'heroCtaLabel',
+          'showcaseTitle', 'showcaseSubtitle',
+          'aboutMissionTitle', 'aboutMissionBody', 'aboutHighlights',
+          'certificateAuthorityTitle', 'certificateHeaderSubtitle', 'certificateFooterNote',
+          'sectionVisibility',
+          'contactEmail', 'contactPhone', 'campusAddress',
+          'facultyCoordinator', 'studentCoordinator',
+          'branches', 'years', 'privacyText', 'showPublicResults', 'updatedBy', 'updatedAt'
+        ])
+        && data.clubName is string && data.clubName.size() >= 2 && data.clubName.size() <= 150
+        && data.institutionName is string && data.institutionName.size() >= 2 && data.institutionName.size() <= 200
+        && data.tagline is string && data.tagline.size() <= 250
+        && (!('heroEyebrow' in data) || (data.heroEyebrow is string && data.heroEyebrow.size() <= 120))
+        && (!('heroTitle' in data) || (data.heroTitle is string && data.heroTitle.size() <= 160))
+        && (!('heroSubtitle' in data) || (data.heroSubtitle is string && data.heroSubtitle.size() <= 400))
+        && (!('heroCtaLabel' in data) || (data.heroCtaLabel is string && data.heroCtaLabel.size() <= 60))
+        && (!('showcaseTitle' in data) || (data.showcaseTitle is string && data.showcaseTitle.size() <= 140))
+        && (!('showcaseSubtitle' in data) || (data.showcaseSubtitle is string && data.showcaseSubtitle.size() <= 300))
+        && (!('aboutMissionTitle' in data) || (data.aboutMissionTitle is string && data.aboutMissionTitle.size() <= 140))
+        && (!('aboutMissionBody' in data) || (data.aboutMissionBody is string && data.aboutMissionBody.size() <= 2000))
+        && (!('aboutHighlights' in data) || (data.aboutHighlights is list && data.aboutHighlights.size() <= 8 && (data.aboutHighlights.size() == 0 || data.aboutHighlights[0] is map)))
+        && (!('certificateAuthorityTitle' in data) || (data.certificateAuthorityTitle is string && data.certificateAuthorityTitle.size() <= 120))
+        && (!('certificateHeaderSubtitle' in data) || (data.certificateHeaderSubtitle is string && data.certificateHeaderSubtitle.size() <= 160))
+        && (!('certificateFooterNote' in data) || (data.certificateFooterNote is string && data.certificateFooterNote.size() <= 300))
+        && (!('sectionVisibility' in data) || isValidSectionVisibilityMap(data.sectionVisibility))
+        && data.contactEmail is string && data.contactEmail.size() <= 200
+        && data.contactPhone is string && data.contactPhone.size() <= 40
+        && data.campusAddress is string && data.campusAddress.size() <= 400
+        && data.facultyCoordinator is string && data.facultyCoordinator.size() <= 150
+        && data.studentCoordinator is string && data.studentCoordinator.size() <= 150
+        && data.branches is list && data.branches.size() >= 1 && data.branches.size() <= 20 && data.branches[0] is string
+        && data.years is list && data.years.size() >= 1 && data.years.size() <= 10 && data.years[0] is string
+        && data.privacyText is string && data.privacyText.size() <= 3000
+        && data.showPublicResults is bool
+        && data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128
+        && data.updatedAt is timestamp;
+    }
+
+    // -------------------------------------------------------------------------
+    // Collection Rules
+    // -------------------------------------------------------------------------
+
+    // Admins
+    match /admins/{uid} {
+      allow get: if isValidId(uid) && isVerifiedEmail() && (request.auth.uid == uid || isSuperAdmin());
+      allow list: if isSuperAdmin();
+
+      allow create: if isValidId(uid)
+        && isVerifiedEmail()
+        && isValidAdminUser(incoming(), uid)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isSuperAdmin()
+          || (
+            request.auth.uid == uid
+            && isBootstrappedSuperAdminEmail()
+            && incoming().role == 'super_admin'
+            && incoming().active == true
+            && incoming().email.lower() == request.auth.token.email.lower()
+          )
+          || (
+            request.auth.uid == uid
+            && 'inviteId' in incoming()
+            && isValidId(incoming().inviteId)
+            && exists(/databases/$(database)/documents/adminInvites/$(incoming().inviteId))
+            && get(/databases/$(database)/documents/adminInvites/$(incoming().inviteId)).data.active == true
+            && get(/databases/$(database)/documents/adminInvites/$(incoming().inviteId)).data.email.lower() == request.auth.token.email.lower()
+            && incoming().email.lower() == request.auth.token.email.lower()
+            && incoming().role == get(/databases/$(database)/documents/adminInvites/$(incoming().inviteId)).data.role
+            && incoming().assignedEventIds == get(/databases/$(database)/documents/adminInvites/$(incoming().inviteId)).data.assignedEventIds
+            && incoming().permissions == get(/databases/$(database)/documents/adminInvites/$(incoming().inviteId)).data.permissions
+            && incoming().active == true
+          )
+        );
+
+      allow update: if isValidId(uid)
+        && isSuperAdmin()
+        && isValidAdminUser(incoming(), uid)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+
+      allow delete: if isValidId(uid) && isSuperAdmin() && uid != request.auth.uid;
+    }
+
+    // Admin Invites
+    match /adminInvites/{inviteId} {
+      allow get: if isValidId(inviteId)
+        && isVerifiedEmail()
+        && (isSuperAdmin() || resource == null || existing().email.lower() == request.auth.token.email.lower());
+      allow list: if isSuperAdmin();
+
+      allow create: if isValidId(inviteId)
+        && isSuperAdmin()
+        && isValidAdminInvite(incoming())
+        && incoming().invitedBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(inviteId)
+        && isSuperAdmin()
+        && isValidAdminInvite(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+
+      allow delete: if isValidId(inviteId) && isSuperAdmin();
+    }
+
+    // Student Google Login Accounts (Private to owner student & active admins; moderation by managers)
+    match /studentAccounts/{uid} {
+      allow get: if isValidId(uid)
+        && isVerifiedEmail()
+        && (request.auth.uid == uid || isActiveAdmin());
+      allow list: if isActiveAdmin();
+
+      allow create: if isValidId(uid)
+        && isVerifiedEmail()
+        && request.auth.uid == uid
+        && isValidStudentAccount(incoming(), uid)
+        && incoming().email.lower() == request.auth.token.email.lower()
+        && incoming().status == 'active'
+        && incoming().blockedReason == ''
+        && incoming().blockedBy == ''
+        && incoming().blockedByName == ''
+        && (!('blockedAt' in incoming()) || incoming().blockedAt == null)
+        && incoming().loginCount == 1
+        && incoming().lastLoginAt == request.time
+        && incoming().lastActiveAt == request.time
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(uid)
+        && isValidStudentAccount(incoming(), uid)
+        && incoming().uid == existing().uid
+        && incoming().email.lower() == existing().email.lower()
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (
+            isVerifiedEmail()
+            && request.auth.uid == uid
+            && existing().status == 'active'
+            && incoming().status == 'active'
+            && incoming().loginCount >= existing().loginCount
+            && incoming().loginCount <= existing().loginCount + 1
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'displayName', 'photoUrl', 'profileCompleted',
+              'fullName', 'registrationNumber', 'branch', 'year', 'semester', 'phone',
+              'loginCount', 'lastLoginAt', 'lastActiveAt', 'updatedAt'
+            ])
+          )
+          || (
+            isAdminManager()
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'blockedReason', 'blockedBy', 'blockedByName', 'blockedAt', 'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isValidId(uid) && isAdminManager();
+    }
+
+    // Student Activity Timeline (Append-only logs readable by admins or owning student)
+    match /studentActivity/{activityId} {
+      allow get: if isValidId(activityId)
+        && (isActiveAdmin() || (isVerifiedEmail() && resource != null && existing().uid == request.auth.uid));
+      allow list: if isActiveAdmin() || (isVerifiedEmail() && existing().uid == request.auth.uid);
+
+      allow create: if isValidId(activityId)
+        && isValidStudentActivity(incoming())
+        && incoming().createdAt == request.time
+        && (
+          (
+            isVerifiedEmail()
+            && incoming().uid == request.auth.uid
+            && incoming().email.lower() == request.auth.token.email.lower()
+            && (incoming().action == 'blocked_access_attempt' || !isBlockedStudent())
+          )
+          || (
+            isAdminManager()
+            && incoming().action in ['admin_block', 'admin_unblock', 'admin_remove']
+          )
+        );
+
+      allow update: if false;
+      allow delete: if isValidId(activityId) && isAdminManager();
+    }
+
+    // Enrollment Locks (PII-free uniqueness enforcement across Google UIDs)
+    match /enrollmentLocks/{regNoHash} {
+      allow get: if isValidSha256Id(regNoHash)
+        && (isActiveAdmin() || isVerifiedEmail());
+      allow list: if false;
+
+      allow create: if isValidSha256Id(regNoHash)
+        && isVerifiedEmail()
+        && !isBlockedStudent()
+        && isValidEnrollmentLock(incoming(), regNoHash)
+        && incoming().uid == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidSha256Id(regNoHash)
+        && isVerifiedEmail()
+        && !isBlockedStudent()
+        && isValidEnrollmentLock(incoming(), regNoHash)
+        && existing().uid == request.auth.uid
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+
+      allow delete: if isValidSha256Id(regNoHash)
+        && (
+          (isVerifiedEmail() && !isBlockedStudent() && existing().uid == request.auth.uid)
+          || isAdminManager()
+        );
+    }
+
+    // Student Academic Profiles (Private to owner student & active admins)
+    match /studentProfiles/{uid} {
+      allow get: if isValidId(uid)
+        && isVerifiedEmail()
+        && (request.auth.uid == uid || isActiveAdmin());
+      allow list: if isActiveAdmin();
+
+      allow create: if isValidId(uid)
+        && isVerifiedEmail()
+        && request.auth.uid == uid
+        && !isBlockedStudent()
+        && isValidStudentProfile(incoming(), uid)
+        && incoming().email.lower() == request.auth.token.email.lower()
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && existsAfter(/databases/$(database)/documents/enrollmentLocks/$(incoming().regNoHash))
+        && getAfter(/databases/$(database)/documents/enrollmentLocks/$(incoming().regNoHash)).data.uid == uid;
+
+      allow update: if isValidId(uid)
+        && isVerifiedEmail()
+        && request.auth.uid == uid
+        && !isBlockedStudent()
+        && isValidStudentProfile(incoming(), uid)
+        && incoming().uid == existing().uid
+        && incoming().email.lower() == existing().email.lower()
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && existsAfter(/databases/$(database)/documents/enrollmentLocks/$(incoming().regNoHash))
+        && getAfter(/databases/$(database)/documents/enrollmentLocks/$(incoming().regNoHash)).data.uid == uid;
+
+      allow delete: if isValidId(uid) && isAdminManager();
+    }
+
+    // Events
+    match /events/{eventId} {
+      allow get: if isValidId(eventId) && (resource == null || isPublicEventData(existing()) || isActiveAdmin());
+      allow list: if isPublicEventData(existing()) || isActiveAdmin();
+
+      allow create: if isValidId(eventId)
+        && isSuperAdmin()
+        && isValidSportEvent(incoming())
+        && incoming().createdBy == request.auth.uid
+        && incoming().updatedBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(eventId)
+        && isEventAdminFor(eventId)
+        && isValidSportEvent(incoming())
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedBy == request.auth.uid
+        && incoming().updatedAt == request.time;
+
+      allow delete: if isValidId(eventId)
+        && isSuperAdmin();
+
+      // Games Subcollection
+      match /games/{gameId} {
+        allow get: if isValidId(eventId) && isValidId(gameId)
+          && (
+            resource == null
+            || (parentEventExists(eventId) && isPublicEventData(parentEventData(eventId)) && existing().registrationStatus in ['open', 'closed'])
+            || isActiveAdmin()
+          );
+
+        allow list: if isValidId(eventId)
+          && (
+            (parentEventExists(eventId) && isPublicEventData(parentEventData(eventId)) && existing().registrationStatus in ['open', 'closed'])
+            || isActiveAdmin()
+          );
+
+        allow create: if isValidId(eventId) && isValidId(gameId)
+          && isEventAdminFor(eventId)
+          && parentEventExists(eventId)
+          && isValidEventGame(incoming(), eventId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+
+        allow update: if isValidId(eventId) && isValidId(gameId)
+          && isEventAdminFor(eventId)
+          && parentEventExists(eventId)
+          && isValidEventGame(incoming(), eventId)
+          && incoming().eventId == existing().eventId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time;
+
+        allow delete: if isValidId(eventId) && isValidId(gameId)
+          && isEventAdminFor(eventId);
+      }
+    }
+
+    // Event Photos Gallery (Admin upload per event, students browse published photos)
+    match /eventPhotos/{photoId} {
+      allow get: if isValidId(photoId) && (resource == null || existing().published == true || isActiveAdmin());
+      allow list: if existing().published == true || isActiveAdmin();
+
+      allow create: if isValidId(photoId)
+        && isEventAdminFor(incoming().eventId)
+        && parentEventExists(incoming().eventId)
+        && isValidEventPhoto(incoming())
+        && incoming().uploadedBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(photoId)
+        && isEventAdminFor(existing().eventId)
+        && isValidEventPhoto(incoming())
+        && incoming().eventId == existing().eventId
+        && incoming().uploadedBy == existing().uploadedBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+
+      allow delete: if isValidId(photoId) && isEventAdminFor(existing().eventId);
+    }
+
+    // Issued Certificates Ledger (Admin-distributed Winner, Selected & Participation Certificates)
+    match /issuedCertificates/{certId} {
+      allow get: if isValidId(certId) && (
+        resource == null
+        || isActiveAdmin()
+        || (isVerifiedEmail() && existing().studentUid != '' && existing().studentUid == request.auth.uid)
+      );
+
+      allow list: if isActiveAdmin()
+        || (isVerifiedEmail() && existing().studentUid != '' && existing().studentUid == request.auth.uid);
+
+      allow create: if isValidId(certId)
+        && isCoordinatorOrAboveFor(incoming().eventId)
+        && parentEventExists(incoming().eventId)
+        && isValidIssuedCertificate(incoming())
+        && incoming().issuedBy == request.auth.uid
+        && incoming().issuedAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(certId)
+        && isCoordinatorOrAboveFor(existing().eventId)
+        && isValidIssuedCertificate(incoming())
+        && incoming().eventId == existing().eventId
+        && incoming().issuedBy == existing().issuedBy
+        && incoming().issuedAt == existing().issuedAt
+        && incoming().updatedAt == request.time;
+
+      allow delete: if isValidId(certId) && isEventAdminFor(existing().eventId);
+    }
+
+    // Certificate Indexes (SHA-256 keyed by student registrationNumber for logged-in student retrieval)
+    match /certificateIndexes/{regNoHash} {
+      allow read, write: if false;
+
+      match /items/{certId} {
+        allow get: if isValidSha256Id(regNoHash) && isValidId(certId) && (isActiveAdmin() || isVerifiedEmail());
+        allow list: if isValidSha256Id(regNoHash) && (isActiveAdmin() || isVerifiedEmail());
+
+        allow create: if isValidSha256Id(regNoHash)
+          && isValidId(certId)
+          && isCoordinatorOrAboveFor(incoming().eventId)
+          && isValidCertificateIndexEntry(incoming(), regNoHash, certId)
+          && incoming().issuedAt == request.time
+          && incoming().updatedAt == request.time;
+
+        allow update: if isValidSha256Id(regNoHash)
+          && isValidId(certId)
+          && isCoordinatorOrAboveFor(existing().eventId)
+          && isValidCertificateIndexEntry(incoming(), regNoHash, certId)
+          && incoming().issuedAt == existing().issuedAt
+          && incoming().updatedAt == request.time;
+
+        allow delete: if isValidSha256Id(regNoHash) && isValidId(certId) && isEventAdminFor(existing().eventId);
+      }
+    }
+
+    function matchesPendingRegistration(regData, eventId, gameId) {
+      return regData.studentUid == request.auth.uid
+        && regData.eventId == eventId
+        && regData.gameId == gameId;
+    }
+
+    function gameCapacityAllowsCount(g, nextCount) {
+      return (
+        g.participationType == 'individual'
+        && (!('maxParticipants' in g) || g.maxParticipants == 0 || nextCount <= g.maxParticipants)
+      ) || (
+        g.participationType != 'individual'
+        && (!('maxTeams' in g) || g.maxTeams == 0 || nextCount <= g.maxTeams)
+      );
+    }
+
+    function isOpenGameForRegistration(g, participationType) {
+      return g.registrationStatus == 'open'
+        && g.participationType == participationType;
+    }
+
+    // Game Counters (Atomic capacity enforcement inside registration transaction)
+    match /gameCounters/{counterId} {
+      allow get: if isValidId(counterId);
+      allow list: if false;
+
+      allow create: if isValidId(counterId)
+        && isVerifiedEmail()
+        && !isBlockedStudent()
+        && isValidGameCounter(incoming())
+        && counterId == (incoming().eventId + '__' + incoming().gameId)
+        && incoming().count == 1
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(counterId)
+        && isValidGameCounter(incoming())
+        && incoming().eventId == existing().eventId
+        && incoming().gameId == existing().gameId
+        && incoming().updatedAt == request.time
+        && (
+          (
+            isVerifiedEmail()
+            && !isBlockedStudent()
+            && incoming().count == existing().count + 1
+            && incoming().lastRegistrationId != existing().lastRegistrationId
+          )
+          || isEventAdminFor(existing().eventId)
+        );
+
+      allow delete: if isValidId(counterId) && isSuperAdmin();
+    }
+
+    // Registration Locks (Atomic PII-free duplicate prevention inside registration transaction)
+    match /registrationLocks/{lockId} {
+      allow get: if isValidId(lockId);
+      allow list: if false;
+
+      allow create: if isValidId(lockId)
+        && isVerifiedEmail()
+        && !isBlockedStudent()
+        && isValidRegistrationLock(incoming())
+        && incoming().createdAt == request.time;
+
+      allow update: if false;
+      allow delete: if isValidId(lockId) && (isEventAdminFor(existing().eventId) || isSuperAdmin());
+    }
+
+    // Registrations (Strictly Private PII Collection; Students can read only their own UID-linked entries)
+    match /registrations/{registrationId} {
+      allow get: if isValidId(registrationId) && (
+        isSuperAdmin()
+        || (resource != null && isCoordinatorOrAboveFor(existing().eventId))
+        || (resource != null && isVerifiedEmail() && 'studentUid' in existing() && existing().studentUid != '' && existing().studentUid == request.auth.uid)
+      );
+      allow list: if isSuperAdmin()
+        || (
+          adminDocExists()
+          && adminData().active == true
+          && adminData().role in ['event_admin', 'coordinator']
+          && existing().eventId in adminData().assignedEventIds
+        )
+        || (
+          isVerifiedEmail()
+          && 'studentUid' in existing()
+          && existing().studentUid != ''
+          && existing().studentUid == request.auth.uid
+        );
+
+      allow create: if isValidId(registrationId)
+        && isSignedIn()
+        && isVerifiedEmail()
+        && isValidRegistration(incoming())
+        && !isBlockedStudent()
+        && incoming().declarationAccepted == true
+        && incoming().selectionStatus == 'not_reviewed'
+        && incoming().teamAssignment == ''
+        && incoming().matchStatus == 'not_scheduled'
+        && incoming().result == 'no_result'
+        && (!('certificateIssued' in incoming()) || incoming().certificateIssued == false)
+        && (!('certificateId' in incoming()) || incoming().certificateId == '')
+        && (!('certificateTitle' in incoming()) || incoming().certificateTitle == '')
+        && (!('certificateNote' in incoming()) || incoming().certificateNote == '')
+        && ('studentUid' in incoming() && incoming().studentUid == request.auth.uid)
+        && incoming().adminNotes == ''
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && parentEventExists(incoming().eventId)
+        && parentEventData(incoming().eventId).status == 'registration_open'
+        && parentGameExists(incoming().eventId, incoming().gameId)
+        && isOpenGameForRegistration(
+          parentGameData(incoming().eventId, incoming().gameId),
+          incoming().participationType
+        )
+        && (
+          incoming().participationType == 'individual'
+          || (incoming().participationType == 'doubles' && incoming().team.members.size() >= 1 && incoming().team.members.size() <= 2)
+          || (
+            incoming().participationType == 'team'
+            && incoming().team.teamName.size() <= 120
+            && incoming().team.members.size() >= 0
+            && incoming().team.members.size() <= 30
+          )
+        )
+        && incoming().registrationStatus in ['approved', 'pending'];
+
+      allow update: if isValidId(registrationId)
+        && isValidRegistration(incoming())
+        && incoming().eventId == existing().eventId
+        && incoming().gameId == existing().gameId
+        && incoming().registrationReference == existing().registrationReference
+        && incoming().lookupKey == existing().lookupKey
+        && (!('studentUid' in existing()) || incoming().studentUid == existing().studentUid)
+        && (!('studentPortalKey' in existing()) || incoming().studentPortalKey == existing().studentPortalKey)
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (isEventAdminFor(existing().eventId) && incoming().diff(existing()).affectedKeys().hasOnly([
+            'registrationStatus', 'selectionStatus', 'teamAssignment', 'matchStatus', 'result',
+            'certificateIssued', 'certificateId', 'certificateTitle', 'certificateNote', 'certificateIssuedAt',
+            'studentPortalKey', 'adminNotes', 'participant', 'team', 'updatedAt'
+          ]))
+          || (isCoordinatorOrAboveFor(existing().eventId) && incoming().diff(existing()).affectedKeys().hasOnly([
+            'selectionStatus', 'teamAssignment', 'matchStatus', 'result',
+            'certificateIssued', 'certificateId', 'certificateTitle', 'certificateNote', 'certificateIssuedAt',
+            'studentPortalKey', 'adminNotes', 'updatedAt'
+          ]))
+        );
+
+      allow delete: if isValidId(registrationId) && isEventAdminFor(existing().eventId);
+
+      // Status History Subcollection (Append-Only)
+      match /statusHistory/{historyId} {
+        allow get, list: if isValidId(registrationId)
+          && isCoordinatorOrAboveFor(get(/databases/$(database)/documents/registrations/$(registrationId)).data.eventId);
+
+        allow create: if isValidId(registrationId) && isValidId(historyId)
+          && isCoordinatorOrAboveFor(get(/databases/$(database)/documents/registrations/$(registrationId)).data.eventId)
+          && isValidStatusHistory(incoming())
+          && incoming().changedBy == request.auth.uid
+          && incoming().changedAt == request.time;
+
+        allow update, delete: if false;
+      }
+    }
+
+    // Registration Lookups (Non-enumerable SHA-256 keyed public status & certificate check)
+    match /registrationLookups/{lookupKey} {
+      allow get: if isValidSha256Id(lookupKey);
+      allow list: if false;
+
+      allow create: if isValidSha256Id(lookupKey)
+        && isVerifiedEmail()
+        && isValidRegistrationLookup(incoming())
+        && (!('certificateIssued' in incoming()) || incoming().certificateIssued == false)
+        && (!('certificateId' in incoming()) || incoming().certificateId == '')
+        && (!('certificateTitle' in incoming()) || incoming().certificateTitle == '')
+        && (!('certificateNote' in incoming()) || incoming().certificateNote == '')
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/registrations/$(incoming().registrationId))
+        && get(/databases/$(database)/documents/registrations/$(incoming().registrationId)).data.studentUid == request.auth.uid;
+
+      allow update: if isValidSha256Id(lookupKey)
+        && isCoordinatorOrAboveFor(existing().eventId)
+        && isValidRegistrationLookup(incoming())
+        && incoming().registrationId == existing().registrationId
+        && incoming().registrationReference == existing().registrationReference
+        && incoming().eventId == existing().eventId
+        && incoming().gameId == existing().gameId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+
+      allow delete: if isValidSha256Id(lookupKey) && isEventAdminFor(existing().eventId);
+    }
+
+    // Student Portals (Non-enumerable SHA-256 keyed multi-event / multi-game student hub)
+    match /studentPortals/{portalKey} {
+      allow read, write: if false;
+
+      match /entries/{registrationId} {
+        allow get: if isValidSha256Id(portalKey) && isValidId(registrationId);
+        allow list: if isValidSha256Id(portalKey);
+
+        allow create: if isValidSha256Id(portalKey)
+          && isValidId(registrationId)
+          && isValidStudentPortalEntry(incoming(), portalKey, registrationId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && (
+            (
+              isVerifiedEmail()
+              && incoming().certificateIssued == false
+              && incoming().certificateId == ''
+              && incoming().certificateTitle == ''
+              && incoming().certificateNote == ''
+              && exists(/databases/$(database)/documents/registrations/$(registrationId))
+              && get(/databases/$(database)/documents/registrations/$(registrationId)).data.studentUid == request.auth.uid
+            )
+            || isCoordinatorOrAboveFor(incoming().eventId)
+          );
+
+        allow update: if isValidSha256Id(portalKey)
+          && isValidId(registrationId)
+          && isCoordinatorOrAboveFor(existing().eventId)
+          && isValidStudentPortalEntry(incoming(), portalKey, registrationId)
+          && incoming().portalKey == existing().portalKey
+          && incoming().registrationId == existing().registrationId
+          && incoming().eventId == existing().eventId
+          && incoming().gameId == existing().gameId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time;
+
+        allow delete: if isValidSha256Id(portalKey) && isValidId(registrationId) && isEventAdminFor(existing().eventId);
+      }
+    }
+
+    // Published Results Panel (Public PII-free tournament results)
+    match /publishedResults/{resultId} {
+      allow get: if isValidId(resultId) && (resource == null || existing().published == true || isActiveAdmin());
+      allow list: if existing().published == true || isActiveAdmin();
+
+      allow create: if isValidId(resultId)
+        && isCoordinatorOrAboveFor(incoming().eventId)
+        && isValidPublishedResult(incoming())
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(resultId)
+        && isCoordinatorOrAboveFor(existing().eventId)
+        && isValidPublishedResult(incoming())
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+
+      allow delete: if isValidId(resultId) && isEventAdminFor(existing().eventId);
+    }
+
+    // Announcements
+    match /announcements/{announcementId} {
+      allow get: if isValidId(announcementId) && (resource == null || existing().status == 'published' || isActiveAdmin());
+      allow list: if existing().status == 'published' || isActiveAdmin();
+
+      allow create: if isValidId(announcementId)
+        && isActiveAdmin()
+        && isValidAnnouncement(incoming())
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(announcementId)
+        && isActiveAdmin()
+        && isValidAnnouncement(incoming())
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'title', 'body', 'category', 'eventId', 'imageUrl', 'status', 'publishAt', 'updatedAt'
+        ]);
+
+      allow delete: if isValidId(announcementId) && isSuperAdmin();
+    }
+
+    // Audit Logs (Append-Only)
+    match /auditLogs/{logId} {
+      allow get, list: if isSuperAdmin()
+        || (isActiveAdmin() && existing().actorUid == request.auth.uid);
+
+      allow create: if isValidId(logId)
+        && isActiveAdmin()
+        && isValidAuditLog(incoming())
+        && incoming().createdAt == request.time;
+
+      allow update, delete: if false;
+    }
+
+    // Site Settings
+    match /siteSettings/{settingId} {
+      allow get: if settingId == 'general';
+      allow list: if false;
+
+      allow create, update: if settingId == 'general'
+        && isSuperAdmin()
+        && isValidSiteSettings(incoming())
+        && incoming().updatedBy == request.auth.uid
+        && incoming().updatedAt == request.time;
+
+      allow delete: if false;
+    }
+  }
+}
