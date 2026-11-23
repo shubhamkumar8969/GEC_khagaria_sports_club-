@@ -189,6 +189,8 @@ export async function saveStudentProfile(
     const profileRef = doc(db, 'studentProfiles', uid);
     const nextLockRef = doc(db, 'enrollmentLocks', regNoHash);
 
+    let isNewProfile = false;
+
     await runTransaction(db, async (tx) => {
       activePath = path;
       const existingSnap = await tx.get(profileRef);
@@ -196,6 +198,7 @@ export async function saveStudentProfile(
       activePath = `enrollmentLocks/${regNoHash}`;
       const nextLockSnap = await tx.get(nextLockRef);
 
+      isNewProfile = !existingSnap.exists();
       const existingData = existingSnap.exists()
         ? (existingSnap.data() as StudentProfile)
         : null;
@@ -266,6 +269,26 @@ export async function saveStudentProfile(
         });
       }
     });
+
+    // Update public student count if this was a new profile registration
+    if (isNewProfile) {
+      try {
+        const statsRef = doc(db, 'publicStats', 'summary');
+        const statsSnap = await getDoc(statsRef);
+        const curCount = statsSnap.exists() ? Number(statsSnap.data()?.studentCount) || 0 : 0;
+        await setDoc(
+          statsRef,
+          {
+            studentCount: curCount + 1,
+            updatedAt: serverTimestamp(),
+            lastUpdatedBy: uid,
+          },
+          { merge: true }
+        );
+      } catch {
+        // Non-fatal metrics sync
+      }
+    }
 
     // Keep studentAccounts snapshot synced if present
     try {
@@ -541,6 +564,36 @@ export async function removeStudentRecord(params: {
       }
     }
 
+    // Fallback lock deletion using registrationNumber string so same student can register again
+    if (registrationNumber && registrationNumber.trim().length >= 2) {
+      try {
+        const fallbackHash = await computeRegNoHash(normalizeEnrollment(registrationNumber));
+        await deleteDoc(doc(db, 'enrollmentLocks', fallbackHash));
+      } catch {
+        // Non-fatal
+      }
+    }
+
+    // Decrement public registered student count
+    try {
+      const statsRef = doc(db, 'publicStats', 'summary');
+      const statsSnap = await getDoc(statsRef);
+      if (statsSnap.exists()) {
+        const cur = Number(statsSnap.data()?.studentCount) || 0;
+        await setDoc(
+          statsRef,
+          {
+            studentCount: Math.max(0, cur - 1),
+            updatedAt: serverTimestamp(),
+            lastUpdatedBy: actor.uid,
+          },
+          { merge: true }
+        );
+      }
+    } catch {
+      // Non-fatal
+    }
+
     // Clean up user activity docs in chunks
     if (!actSnap.empty) {
       const docs = actSnap.docs;
@@ -573,3 +626,76 @@ export async function removeStudentRecord(params: {
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
+
+/**
+ * Checks whether an enrollment number is already registered to another Google account.
+ * Used during Student ID / profile login setup to enforce 1-to-1 unique student registration.
+ */
+export async function checkEnrollmentNumberAvailable(
+  registrationNumber: string,
+  currentUserUid: string
+): Promise<{ available: boolean; error?: string }> {
+  const normReg = normalizeEnrollment(registrationNumber);
+  if (!normReg || normReg.length < 2) {
+    return { available: true };
+  }
+  const regNoHash = await computeRegNoHash(normReg);
+  try {
+    const lockSnap = await getDoc(doc(db, 'enrollmentLocks', regNoHash));
+    if (lockSnap.exists()) {
+      const lockUid = lockSnap.data()?.uid;
+      if (lockUid && lockUid !== currentUserUid) {
+        return {
+          available: false,
+          error: `Registration number "${normReg}" is already registered to another student account. Each student must use their own unique registration number for login.`,
+        };
+      }
+    }
+    return { available: true };
+  } catch {
+    // Non-fatal, atomic transaction will also verify
+    return { available: true };
+  }
+}
+
+/**
+ * Retrieves the total count of registered students from safe public aggregate stats.
+ */
+export async function getRegisteredStudentsCount(): Promise<number> {
+  try {
+    const snap = await getDoc(doc(db, 'publicStats', 'summary'));
+    if (snap.exists()) {
+      const val = snap.data()?.studentCount;
+      if (typeof val === 'number' && !isNaN(val)) {
+        return Math.max(0, Math.floor(val));
+      }
+    }
+  } catch {
+    // Non-fatal fallback
+  }
+  return 0;
+}
+
+/**
+ * Synchronizes the public aggregate student count with the current verified count.
+ */
+export async function syncPublicStudentCount(
+  actualCount: number,
+  actorUid = ''
+): Promise<void> {
+  try {
+    const ref = doc(db, 'publicStats', 'summary');
+    await setDoc(
+      ref,
+      {
+        studentCount: Math.max(0, actualCount),
+        updatedAt: serverTimestamp(),
+        lastUpdatedBy: actorUid || 'system',
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.warn('Could not sync public student count:', err);
+  }
+}
+

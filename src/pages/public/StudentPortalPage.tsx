@@ -26,7 +26,11 @@ import {
   lookupStudentPortalEntries,
 } from '@/src/services/firebase/registrations';
 import { listCertificatesForStudent } from '@/src/services/firebase/certificates';
-import { logStudentActivity, saveStudentProfile } from '@/src/services/firebase/students';
+import {
+  checkEnrollmentNumberAvailable,
+  logStudentActivity,
+  saveStudentProfile,
+} from '@/src/services/firebase/students';
 import { SEMESTER_OPTIONS, studentProfileSchema } from '@/src/schemas/validation';
 import { formatDateTime } from '@/src/utils/formatters';
 import { downloadCertificatePng, type CertificateData } from '@/src/utils/certificateGenerator';
@@ -199,7 +203,7 @@ export function StudentPortalPage() {
       setError(null);
       try {
         const [uidRegs, certs, portalList] = await Promise.all([
-          listRegistrationsForStudentUid(uid),
+          listRegistrationsForStudentUid(uid, regNumber),
           listCertificatesForStudent(uid, regNumber),
           regNumber && phone && phone.replace(/\D/g, '').length >= 7
             ? lookupStudentPortalEntries(regNumber, phone).catch(() => [])
@@ -281,6 +285,19 @@ export function StudentPortalPage() {
 
     setSavingProfile(true);
     try {
+      const availCheck = await checkEnrollmentNumberAvailable(
+        parsed.data.registrationNumber,
+        firebaseUser.uid
+      );
+      if (!availCheck.available) {
+        setError(
+          availCheck.error ||
+            `Enrollment number "${parsed.data.registrationNumber}" is already in use by another student account.`
+        );
+        setSavingProfile(false);
+        return;
+      }
+
       const saved = await saveStudentProfile(firebaseUser.uid, firebaseUser.email, {
         fullName: parsed.data.fullName,
         registrationNumber: parsed.data.registrationNumber,

@@ -9,6 +9,7 @@ import { listRegistrationsForAdmin } from '@/src/services/firebase/registrations
 import {
   listAllStudentAccountsForAdmin,
   listAllStudentProfilesForAdmin,
+  syncPublicStudentCount,
 } from '@/src/services/firebase/students';
 import { formatDate, formatDateTime } from '@/src/utils/formatters';
 import type { Registration, SportEvent } from '@/src/types/models';
@@ -42,6 +43,7 @@ export function AdminDashboardPage() {
         setRegistrations(regList);
         setTotalStudentLogins(distinctUids.size);
         setBlockedStudentsCount(acctList.filter((a) => a.status === 'blocked').length);
+        void syncPublicStudentCount(distinctUids.size, adminProfile?.uid || '');
       } catch (err) {
         if (active) setError(err instanceof Error ? err.message : 'Failed to load dashboard data.');
       } finally {

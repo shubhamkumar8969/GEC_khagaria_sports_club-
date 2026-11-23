@@ -10,7 +10,11 @@ import {
   submitRegistration,
   type SubmitRegistrationResult,
 } from '@/src/services/firebase/registrations';
-import { logStudentActivity, saveStudentProfile } from '@/src/services/firebase/students';
+import {
+  checkEnrollmentNumberAvailable,
+  logStudentActivity,
+  saveStudentProfile,
+} from '@/src/services/firebase/students';
 import {
   SEMESTER_OPTIONS,
   participantSchema,
@@ -211,6 +215,19 @@ export function RegisterPage() {
 
     setSavingSetup(true);
     try {
+      const availCheck = await checkEnrollmentNumberAvailable(
+        parsed.data.registrationNumber,
+        firebaseUser.uid
+      );
+      if (!availCheck.available) {
+        setSetupError(
+          availCheck.error ||
+            `Enrollment number "${parsed.data.registrationNumber}" is already registered to another student account.`
+        );
+        setSavingSetup(false);
+        return;
+      }
+
       const saved = await saveStudentProfile(firebaseUser.uid, firebaseUser.email, {
         fullName: parsed.data.fullName,
         registrationNumber: parsed.data.registrationNumber,

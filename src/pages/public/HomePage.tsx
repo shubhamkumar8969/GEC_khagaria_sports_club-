@@ -24,6 +24,7 @@ import { listPublicEvents, listPublicGames } from '@/src/services/firebase/event
 import { listPublicAnnouncements } from '@/src/services/firebase/announcements';
 import { listPublicResults } from '@/src/services/firebase/results';
 import { listPublicEventPhotos } from '@/src/services/firebase/photos';
+import { getRegisteredStudentsCount } from '@/src/services/firebase/students';
 import { DEFAULT_SITE_SETTINGS } from '@/src/services/firebase/settings';
 import { formatDate } from '@/src/utils/formatters';
 import type {
@@ -107,6 +108,7 @@ export function HomePage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [results, setResults] = useState<PublishedResult[]>([]);
   const [photos, setPhotos] = useState<EventPhoto[]>([]);
+  const [registeredStudentsCount, setRegisteredStudentsCount] = useState<number>(0);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -120,13 +122,15 @@ export function HomePage() {
     let active = true;
     async function load() {
       try {
-        const [evList, annList, resList, photoList] = await Promise.all([
+        const [evList, annList, resList, photoList, studentCount] = await Promise.all([
           listPublicEvents(),
           listPublicAnnouncements(),
           listPublicResults(),
           listPublicEventPhotos(),
+          getRegisteredStudentsCount(),
         ]);
         if (!active) return;
+        setRegisteredStudentsCount(studentCount);
 
         const orderedEvents = [...evList].sort((a, b) => {
           const rank = (ev: SportEvent) => {
@@ -414,9 +418,9 @@ export function HomePage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               <div className="p-4 rounded-xl card-3d-cyan">
-                <p className="text-xs font-medium text-cyan-200/90">Published Events</p>
+                <p className="text-xs font-medium text-cyan-200/90">Students Registered</p>
                 <p className="mt-1 font-display text-2xl font-bold text-white tabular-nums">
-                  {loading ? '—' : events.length}
+                  {loading ? '—' : registeredStudentsCount}
                 </p>
               </div>
               <div className="p-4 rounded-xl card-3d-emerald">

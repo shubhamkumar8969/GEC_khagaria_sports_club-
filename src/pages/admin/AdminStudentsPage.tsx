@@ -29,6 +29,7 @@ import {
   listStudentActivityByUid,
   removeStudentRecord,
   setStudentBlockStatus,
+  syncPublicStudentCount,
 } from '@/src/services/firebase/students';
 import { formatDateTime } from '@/src/utils/formatters';
 import { normalizeEnrollment } from '@/src/schemas/validation';
@@ -164,6 +165,12 @@ export function AdminStudentsPage() {
       setActivities(actList);
       setRegistrations(regList);
       setCertificates(certList);
+
+      const uniqueUids = new Set([
+        ...acctList.map((a) => a.uid),
+        ...profList.map((p) => p.uid),
+      ]);
+      void syncPublicStudentCount(uniqueUids.size, adminProfile.uid);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load student accounts and activity.');
     } finally {

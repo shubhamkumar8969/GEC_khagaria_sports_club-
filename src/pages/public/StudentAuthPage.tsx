@@ -4,7 +4,11 @@ import { ArrowRight, Award, Ban, CheckCircle2, LogIn, LogOut, ShieldCheck } from
 import { PublicLayout } from '@/src/components/layout/PublicLayout';
 import { useAuth } from '@/src/app/AuthContext';
 import { useSiteSettings } from '@/src/app/SettingsContext';
-import { logStudentActivity, saveStudentProfile } from '@/src/services/firebase/students';
+import {
+  checkEnrollmentNumberAvailable,
+  logStudentActivity,
+  saveStudentProfile,
+} from '@/src/services/firebase/students';
 import { SEMESTER_OPTIONS, studentProfileSchema } from '@/src/schemas/validation';
 
 export function StudentAuthPage() {
@@ -109,6 +113,19 @@ export function StudentAuthPage() {
 
     setSaving(true);
     try {
+      const availCheck = await checkEnrollmentNumberAvailable(
+        parsed.data.registrationNumber,
+        firebaseUser.uid
+      );
+      if (!availCheck.available) {
+        setError(
+          availCheck.error ||
+            `Enrollment number "${parsed.data.registrationNumber}" is already in use by another student account.`
+        );
+        setSaving(false);
+        return;
+      }
+
       const saved = await saveStudentProfile(firebaseUser.uid, firebaseUser.email, {
         fullName: parsed.data.fullName,
         registrationNumber: parsed.data.registrationNumber,
@@ -308,6 +325,9 @@ export function StudentAuthPage() {
                       placeholder="e.g. 23105123001"
                       className={`${inputClass} font-mono uppercase`}
                     />
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Must be your own unique registration number. Cannot be claimed by another login.
+                    </p>
                   </div>
 
                   <div>

@@ -400,18 +400,61 @@ export async function lookupStudentPortalEntries(
   }
 }
 
-export async function listRegistrationsForStudentUid(uid: string): Promise<Registration[]> {
+export async function listRegistrationsForStudentUid(
+  uid: string,
+  enrollmentNumber?: string
+): Promise<Registration[]> {
   const path = 'registrations';
   try {
+    const resultsMap = new Map<string, Registration>();
+
     const q = query(
       collection(db, 'registrations'),
       where('studentUid', '==', uid),
       limit(100)
     );
     const snap = await getDocs(q);
-    return snap.docs
-      .map((d) => ({ id: d.id, ...(d.data() as Omit<Registration, 'id'>) }))
-      .sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0));
+    for (const d of snap.docs) {
+      resultsMap.set(d.id, { id: d.id, ...(d.data() as Omit<Registration, 'id'>) });
+    }
+
+    if (enrollmentNumber && enrollmentNumber.trim().length >= 2) {
+      const cleanEnroll = normalizeEnrollment(enrollmentNumber);
+
+      const qEnroll = query(
+        collection(db, 'registrations'),
+        where('participant.enrollmentNumber', '==', cleanEnroll),
+        limit(100)
+      );
+      const snapEnroll = await getDocs(qEnroll);
+      for (const d of snapEnroll.docs) {
+        resultsMap.set(d.id, { id: d.id, ...(d.data() as Omit<Registration, 'id'>) });
+      }
+
+      const qTeam = query(
+        collection(db, 'registrations'),
+        where('participationType', 'in', ['doubles', 'team']),
+        limit(200)
+      );
+      const snapTeam = await getDocs(qTeam);
+      for (const d of snapTeam.docs) {
+        const regData = d.data() as Registration;
+        const members = regData.team?.members || [];
+        const isMember = members.some(
+          (m) => normalizeEnrollment(m.enrollmentNumber) === cleanEnroll
+        );
+        if (
+          isMember ||
+          normalizeEnrollment(regData.team?.captainEnrollment || '') === cleanEnroll
+        ) {
+          resultsMap.set(d.id, { id: d.id, ...(regData as Omit<Registration, 'id'>) });
+        }
+      }
+    }
+
+    return Array.from(resultsMap.values()).sort(
+      (a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0)
+    );
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, path);
   }

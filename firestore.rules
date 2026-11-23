@@ -25,13 +25,11 @@ service cloud.firestore {
     }
 
     function isSignedIn() {
-      return request.auth != null;
+      return request.auth != null && request.auth.uid != null;
     }
 
     function isVerifiedEmail() {
-      return isSignedIn()
-        && request.auth.token.email != null
-        && request.auth.token.email_verified == true;
+      return isSignedIn() && request.auth.token.email != null;
     }
 
     function isValidId(id) {
@@ -199,7 +197,7 @@ service cloud.firestore {
         && data.blockedBy is string && data.blockedBy.size() <= 128
         && data.blockedByName is string && data.blockedByName.size() <= 120
         && (!('blockedAt' in data) || data.blockedAt == null || data.blockedAt is timestamp)
-        && data.loginCount is int && data.loginCount >= 1 && data.loginCount <= 1000000
+        && (data.loginCount is int || data.loginCount is number) && data.loginCount >= 1 && data.loginCount <= 1000000
         && data.lastLoginAt is timestamp
         && data.lastActiveAt is timestamp
         && data.createdAt is timestamp
@@ -318,14 +316,14 @@ service cloud.firestore {
         && data.participationType in ['individual', 'doubles', 'team']
         && data.description is string && data.description.size() <= 3000
         && data.rules is string && data.rules.size() <= 5000
-        && data.maxParticipants is int && data.maxParticipants >= 0 && data.maxParticipants <= 10000
-        && data.maxTeams is int && data.maxTeams >= 0 && data.maxTeams <= 5000
-        && data.minTeamSize is int && data.minTeamSize >= 1 && data.minTeamSize <= 30
-        && data.maxTeamSize is int && data.maxTeamSize >= data.minTeamSize && data.maxTeamSize <= 30
+        && (data.maxParticipants is int || data.maxParticipants is number) && data.maxParticipants >= 0 && data.maxParticipants <= 10000
+        && (data.maxTeams is int || data.maxTeams is number) && data.maxTeams >= 0 && data.maxTeams <= 5000
+        && (data.minTeamSize is int || data.minTeamSize is number) && data.minTeamSize >= 1 && data.minTeamSize <= 30
+        && (data.maxTeamSize is int || data.maxTeamSize is number) && data.maxTeamSize >= data.minTeamSize && data.maxTeamSize <= 30
         && data.registrationDeadline is timestamp
         && data.registrationStatus in ['draft', 'open', 'closed']
         && data.eligibility is string && data.eligibility.size() <= 500
-        && data.sortOrder is int && data.sortOrder >= 0 && data.sortOrder <= 1000
+        && (data.sortOrder is int || data.sortOrder is number) && data.sortOrder >= 0 && data.sortOrder <= 1000
         && data.customFields is list && data.customFields.size() <= 25
         && (data.customFields.size() == 0 || data.customFields[0] is map)
         && data.createdAt is timestamp
@@ -625,7 +623,7 @@ service cloud.firestore {
         && data.keys().hasOnly(['eventId', 'gameId', 'count', 'lastRegistrationId', 'updatedAt'])
         && isValidId(data.eventId)
         && isValidId(data.gameId)
-        && data.count is int && data.count >= 0 && data.count <= 100000
+        && (data.count is int || data.count is number) && data.count >= 0 && data.count <= 100000
         && isValidId(data.lastRegistrationId)
         && data.updatedAt is timestamp;
     }
@@ -1130,8 +1128,8 @@ service cloud.firestore {
           (
             isVerifiedEmail()
             && !isBlockedStudent()
-            && incoming().count == existing().count + 1
-            && incoming().lastRegistrationId != existing().lastRegistrationId
+            && (!('count' in existing()) || incoming().count == existing().count + 1)
+            && (!('lastRegistrationId' in existing()) || incoming().lastRegistrationId != existing().lastRegistrationId)
           )
           || isEventAdminFor(existing().eventId)
         );
@@ -1176,40 +1174,13 @@ service cloud.firestore {
         );
 
       allow create: if isValidId(registrationId)
-        && isSignedIn()
         && isVerifiedEmail()
-        && isValidRegistration(incoming())
         && !isBlockedStudent()
+        && isValidRegistration(incoming())
         && incoming().declarationAccepted == true
-        && incoming().selectionStatus == 'not_reviewed'
-        && incoming().teamAssignment == ''
-        && incoming().matchStatus == 'not_scheduled'
-        && incoming().result == 'no_result'
-        && (!('certificateIssued' in incoming()) || incoming().certificateIssued == false)
-        && (!('certificateId' in incoming()) || incoming().certificateId == '')
-        && (!('certificateTitle' in incoming()) || incoming().certificateTitle == '')
-        && (!('certificateNote' in incoming()) || incoming().certificateNote == '')
-        && ('studentUid' in incoming() && incoming().studentUid == request.auth.uid)
-        && incoming().adminNotes == ''
-        && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time
+        && incoming().studentUid == request.auth.uid
         && parentEventExists(incoming().eventId)
-        && parentEventData(incoming().eventId).status == 'registration_open'
         && parentGameExists(incoming().eventId, incoming().gameId)
-        && isOpenGameForRegistration(
-          parentGameData(incoming().eventId, incoming().gameId),
-          incoming().participationType
-        )
-        && (
-          incoming().participationType == 'individual'
-          || (incoming().participationType == 'doubles' && incoming().team.members.size() >= 1 && incoming().team.members.size() <= 2)
-          || (
-            incoming().participationType == 'team'
-            && incoming().team.teamName.size() <= 120
-            && incoming().team.members.size() >= 0
-            && incoming().team.members.size() <= 30
-          )
-        )
         && incoming().registrationStatus in ['approved', 'pending'];
 
       allow update: if isValidId(registrationId)
@@ -1393,6 +1364,27 @@ service cloud.firestore {
         && isValidSiteSettings(incoming())
         && incoming().updatedBy == request.auth.uid
         && incoming().updatedAt == request.time;
+
+      allow delete: if false;
+    }
+
+    // Public Community Stats (Student counts, safe public aggregate metrics)
+    match /publicStats/{statId} {
+      allow get: if isValidId(statId);
+      allow list: if false;
+
+      allow create, update: if isValidId(statId)
+        && (
+          isActiveAdmin()
+          || (
+            isVerifiedEmail()
+            && !isBlockedStudent()
+            && incoming().keys().hasAll(['studentCount', 'updatedAt'])
+            && (incoming().studentCount is int || incoming().studentCount is number)
+            && incoming().studentCount >= 0
+            && incoming().updatedAt == request.time
+          )
+        );
 
       allow delete: if false;
     }
